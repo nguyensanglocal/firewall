@@ -1,0 +1,9 @@
+psutil
+netifaces
+pywin32
+colorama
+Flask
+Flask-SocketIO
+scapy
+requests
+ipaddress
