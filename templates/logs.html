@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}Access Logs - Firewall Monitor{% endblock %}
+
+{% block style %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/logs.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-list"></i> Access Logs</h2>
+    <div>
+        <button class="btn btn-outline-secondary" onclick="exportLogs()">
+            <i class="fas fa-download"></i> Export
+        </button>
+        <button class="btn btn-outline-primary" onclick="location.reload()">
+            <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-4">
+        <div class="input-group">
+            <span class="input-group-text"><i class="fas fa-search"></i></span>
+            <input type="text" class="form-control" id="searchInput" placeholder="Search by IP, path, or user agent...">
+        </div>
+    </div>
+    <div class="col-md-2">
+        <select class="form-select" id="filterThreat">
+            <option value="">All Threat Levels</option>
+            <option value="high">High Threat (4+)</option>
+            <option value="medium">Medium Threat (2-3)</option>
+            <option value="low">Low Threat (0-1)</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <select class="form-select" id="filterSuspicious">
+            <option value="">All Requests</option>
+            <option value="1">Suspicious Only</option>
+            <option value="0">Normal Only</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <select class="form-select" id="itemsPerPage">
+            <option value="10">10 per page</option>
+            <option value="25" selected>25 per page</option>
+            <option value="50">50 per page</option>
+            <option value="100">100 per page</option>
+        </select>
+    </div>
+   
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <span id="recordsInfo">
+                <i class="fas fa-database"></i> 
+                Showing {{ ((page-1) * per_page + 1) if logs else 0 }} - {{ (page * per_page) if (page * per_page) < total_logs else total_logs }} of {{ total_logs }} logs
+            </span>
+            <div class="col-md-2">
+                <button class="btn btn-outline-secondary w-100" onclick="clearFilters()">
+                    <i class="fas fa-times"></i> Clear Filters
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="logsTable">
+                <thead>
+                    <tr>
+                        <th class="sortable" data-column="ip">
+                            <i class="fas fa-network-wired"></i> IP Address 
+                            <i class="fas fa-sort sort-icon"></i>
+                        </th>
+                        <th class="sortable" data-column="timestamp">
+                            <i class="fas fa-clock"></i> Timestamp 
+                            <i class="fas fa-sort sort-icon"></i>
+                        </th>
+                        <th class="sortable" data-column="path">
+                            <i class="fas fa-route"></i> Path 
+                            <i class="fas fa-sort sort-icon"></i>
+                        </th>
+                        <th class="sortable" data-column="method">
+                            <i class="fas fa-method"></i> Method 
+                            <i class="fas fa-sort sort-icon"></i>
+                        </th>
+                        <th class="sortable" data-column="user_agent">
+                            <i class="fas fa-user-agent"></i> User Agent 
+                            <i class="fas fa-sort sort-icon"></i>
+                        </th>
+                        <th class="sortable" data-column="status">
+                            <i class="fas fa-code"></i> Status 
+                            <i class="fas fa-sort sort-icon"></i>
+                        </th>
+                        <th class="sortable" data-column="suspicious">
+                            <i class="fas fa-shield-alt"></i> Suspicious 
+                            <i class="fas fa-sort sort-icon"></i>
+                        </th>
+                        <th class="sortable" data-column="threat">
+                            <i class="fas fa-thermometer-half"></i> Threat 
+                            <i class="fas fa-sort sort-icon"></i>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ip, timestamp, path, method, user_agent, status_code, is_suspicious, threat_level in logs %}
+                    <tr class="{% if is_suspicious %}suspicious{% endif %}" 
+                        data-threat="{{ threat_level }}" 
+                        data-suspicious="{{ is_suspicious }}"
+                        data-ip="{{ ip }}"
+                        data-timestamp="{{ timestamp }}"
+                        data-path="{{ path }}"
+                        data-method="{{ method }}"
+                        data-user-agent="{{ user_agent }}"
+                        data-status="{{ status_code }}">
+                        <td>
+                            <code class="{% if threat_level >= 4 %}text-danger{% elif threat_level >= 2 %}text-warning{% endif %}">
+                                {{ ip }}
+                            </code>
+                        </td>
+                        <td>
+                            <small>{{ timestamp }}</small>
+                        </td>
+                        <td>
+                            <code>{{ path }}</code>
+                        </td>
+                        <td>
+                            <span class="badge {% if method == 'POST' %}bg-primary{% elif method == 'GET' %}bg-success{% elif method == 'DELETE' %}bg-danger{% else %}bg-secondary{% endif %}">
+                                {{ method }}
+                            </span>
+                        </td>
+                        <td>
+                            <small class="text-muted" title="{{ user_agent }}">
+                                {{ user_agent[:50] }}{% if user_agent|length > 50 %}...{% endif %}
+                            </small>
+                        </td>
+                        <td>
+                            <span class="badge {% if status_code < 300 %}bg-success{% elif status_code < 400 %}bg-info{% elif status_code < 500 %}bg-warning{% else %}bg-danger{% endif %}">
+                                {{ status_code }}
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            {% if is_suspicious %}
+                                <i class="fas fa-exclamation-triangle text-warning" title="Suspicious request"></i>
+                            {% else %}
+                                <i class="fas fa-check-circle text-success" title="Normal request"></i>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="progress" style="width: 60px; height: 10px;">
+                                    <div class="progress-bar {% if threat_level >= 4 %}bg-danger{% elif threat_level >= 2 %}bg-warning{% else %}bg-success{% endif %}" 
+                                         style="width: {{ (threat_level / 5 * 100) }}%"></div>
+                                </div>
+                                <span class="ms-2 small">{{ threat_level }}</span>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Pagination -->
+<nav aria-label="Logs pagination" class="mt-4">
+    <ul class="pagination justify-content-center" id="paginationContainer">
+        <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+            <a class="page-link" href="#" onclick="changePage({{ page - 1 if page > 1 else 1 }})">
+                <i class="fas fa-chevron-left"></i> Previous
+            </a>
+        </li>
+        
+        {% set start_page = (page - 2) if (page - 2) > 0 else 1 %}
+        {% set end_page = start_page + 4 %}
+        {% set total_pages = (total_logs / per_page) | round(0, 'ceil') | int %}
+        {% if end_page > total_pages %}{% set end_page = total_pages %}{% endif %}
+        
+        {% for p in range(start_page, end_page + 1) %}
+            <li class="page-item {% if p == page %}active{% endif %}">
+                <a class="page-link" href="#" onclick="changePage({{ p }})">{{ p }}</a>
+            </li>
+        {% endfor %}
+        
+        <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+            <a class="page-link" href="#" onclick="changePage({{ page + 1 if page < total_pages else page }})">
+                Next <i class="fas fa-chevron-right"></i>
+            </a>
+        </li>
+    </ul>
+</nav>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/logs.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,1014 @@
+import os
+import json
+import subprocess
+import platform
+from datetime import datetime
+from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask_socketio import SocketIO, emit
+import psutil
+import threading
+import time
+from flask import Blueprint
+
+class FirewallManager:
+    def __init__(self, socketio: SocketIO, app: Flask, prefix_url='/firewall'):
+        self.rules_file = 'firewall_rules.json'
+        self.blocked_apps = set()
+        self.allowed_apps = set()
+        self.monitoring = False
+        self.connections = []
+        self.socketio = socketio
+        if not self.socketio:
+            self.socketio = SocketIO(app, cors_allowed_origins="*")
+        self.app = app
+        self.prefix = prefix_url
+
+        self.load_rules()
+        self.define_routes()
+        self.register_socketio_handlers()
+        self.create_index_html()  
+
+    def define_routes(self):
+        self.firewall_group = Blueprint('firewall_group', __name__)
+        self.register_routes()
+        self.app.register_blueprint(self.firewall_group, url_prefix=self.prefix)
+
+    def load_rules(self):
+        """Load firewall rules from JSON file"""
+        try:
+            if not os.path.exists(self.rules_file):
+                # Create default rules file if it doesn't exist
+                with open(self.rules_file, 'w', encoding='utf-8') as f:
+                    json.dump({'blocked_apps': [], 'allowed_apps': []}, f, indent=2, ensure_ascii=False)
+            with open(self.rules_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                self.blocked_apps = set(data.get('blocked_apps', []))
+                self.allowed_apps = set(data.get('allowed_apps', []))
+        except Exception as e:
+            print(f"Error loading rules: {e}")
+    
+    def save_rules(self):
+        """Save firewall rules to JSON file"""
+        try:
+            data = {
+                'blocked_apps': list(self.blocked_apps),
+                'allowed_apps': list(self.allowed_apps),
+                'last_updated': datetime.now().isoformat()
+            }
+            with open(self.rules_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"Error saving rules: {e}")
+    
+    def get_running_processes(self):
+        """Get list of running processes with network connections"""
+        processes = []
+        name_exes = []
+        print("Fetching running processes with network activity...")
+        try:
+            for proc in psutil.process_iter(['pid', 'name', 'exe']):
+            # for proc in psutil.process_iter(['pid', 'name', 'exe', 'connections']):
+                # print(f"Checking process: {proc.pid} - {proc.name()}:", proc)
+                try:
+                    proc_info = proc.info
+                    proc_info['connections'] = proc.connections(kind='inet') if hasattr(proc, 'connections') else []
+                    if proc_info['pid'] is None or proc_info['exe'] in [None, 'Unknown', '']:
+                        continue
+                    if proc_info['connections'] and proc_info['exe'] not in name_exes:
+                        name_exes.append(proc_info['exe'])
+
+                        path_exe = proc_info['exe'].replace("\\", '/') if proc_info['exe'] else 'Unknown'
+
+                        processes.append({
+                            'pid': proc_info['pid'],
+                            'name': proc_info['name'],
+                            'exe': path_exe,
+                            'connections': len(proc_info['connections']),
+                            'status': 'blocked' if path_exe in self.blocked_apps else 'allowed'
+                        })
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+        except Exception as e:
+            print(f"Error getting processes: {e}")
+        return processes
+    
+    def get_network_connections(self):
+        """Get active network connections"""
+        connections = []
+        try:
+            for conn in psutil.net_connections(kind='inet'):
+                if conn.status == 'ESTABLISHED':
+                    try:
+                        proc = psutil.Process(conn.pid) if conn.pid else None
+                        connections.append({
+                            'pid': conn.pid or 'Unknown',
+                            'process': proc.name() if proc else 'Unknown',
+                            'local_addr': f"{conn.laddr.ip}:{conn.laddr.port}",
+                            'remote_addr': f"{conn.raddr.ip}:{conn.raddr.port}" if conn.raddr else 'Unknown',
+                            'status': conn.status,
+                            'protocol': 'TCP'
+                        })
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        continue
+        except Exception as e:
+            print(f"Error getting connections: {e}")
+        return connections
+    
+    def block_app(self, app_path):
+        """Block an application"""
+
+        print(f"Blocking application: {app_path}")
+        if app_path not in self.blocked_apps:
+            self.blocked_apps.add(app_path)
+            self.apply_windows_firewall_rule(app_path, 'block')
+        
+        if app_path in self.allowed_apps:
+            self.allowed_apps.remove(app_path)
+
+
+        self.save_rules()
+    
+    def allow_app(self, app_path):
+        """Allow an application"""
+        self.allowed_apps.add(app_path)
+        if app_path in self.blocked_apps:
+            self.blocked_apps.remove(app_path)
+        self.save_rules()
+        self.apply_windows_firewall_rule(app_path, 'allow')
+    
+    def apply_windows_firewall_rule(self, app_path, action):
+        """Apply Windows Firewall rule (requires admin privileges)"""
+        if platform.system() != 'Windows':
+            return False
+        app_path = app_path.replace('/', '\\')  # Ensure Windows path format
+        try:
+            rule_name = f"FireWallManager_{os.path.basename(app_path).replace(' ', '_')}"
+            
+            if action == 'block':
+                cmd = [
+                    'netsh', 'advfirewall', 'firewall', 'add', 'rule',
+                    f'name={rule_name}',
+                    'dir=out',
+                    'action=block',
+                    f'program={app_path}'
+                ]
+            else:  # allow
+                # Remove block rule first
+                subprocess.run([
+                    'netsh', 'advfirewall', 'firewall', 'delete', 'rule',
+                    f'name={rule_name}'
+                ], capture_output=True)
+                return True
+            
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            print(f"Firewall rule applied: {result.stdout.strip()}", f'{result}')
+            return result.returncode == 0
+        except Exception as e:
+            print(f"Error applying firewall rule: {e}")
+            return False
+    
+    def start_monitoring(self):
+        """Start network monitoring"""
+        self.monitoring = True
+        threading.Thread(target=self._monitor_connections, daemon=True).start()
+    
+    def stop_monitoring(self):
+        """Stop network monitoring"""
+        self.monitoring = False
+    
+    def _monitor_connections(self):
+        """Monitor network connections in background"""
+        while self.monitoring:
+            try:
+                self.connections = self.get_network_connections()
+                self.socketio.emit('connection_update', {
+                    'connections': self.connections,
+                    'timestamp': datetime.now().isoformat()
+                })
+                time.sleep(2)  # Update every 2 seconds
+            except Exception as e:
+                print(f"Monitoring error: {e}")
+                time.sleep(5)
+
+    def register_routes(self):
+        @self.firewall_group.route('/')
+        def index():
+            return render_template('manager_process.html')
+        
+        @self.firewall_group.route('/processes')
+        def list_processes():
+            processes = self.get_running_processes()
+            if not processes:
+                return jsonify({'error': 'No processes with network activity found'}), 404
+            print(f"Found {len(processes)} processes with network activity")
+            return jsonify(processes)
+
+        @self.firewall_group.route('/connections')
+        def list_connections():
+            connections = self.get_network_connections()
+            return jsonify(connections)
+
+        @self.firewall_group.route('/block', methods=['POST'])
+        def block_application():
+            data = request.get_json()
+            print(f"Received block request: {data}")
+            app_path = data.get('app_path')
+            if not app_path:
+                return jsonify({'error': 'Missing app_path'}), 400
+            self.block_app(app_path)
+            return jsonify({'success': True, 'message': f'Blocked {os.path.basename(app_path)}'})
+
+        @self.firewall_group.route('/allow', methods=['POST'])
+        def allow_application():
+            data = request.get_json()
+            app_path = data.get('app_path')
+            if not app_path:
+                return jsonify({'error': 'Missing app_path'}), 400
+            self.allow_app(app_path)
+            return jsonify({'success': True, 'message': f'Allowed {os.path.basename(app_path)}'})
+
+        @self.firewall_group.route('/rules')
+        def get_rules():
+            return jsonify({
+                'blocked_apps': list(self.blocked_apps),
+                'allowed_apps': list(self.allowed_apps)
+            })
+        
+        @self.firewall_group.route('/monitoring/start', methods=['POST'])
+        def start_monitoring():
+            """Start network monitoring"""
+            self.start_monitoring()
+            return jsonify({'success': True, 'message': 'Monitoring started'})
+        
+        @self.firewall_group.route('/monitoring/stop', methods=['POST'])
+        def stop_monitoring():
+            """Stop network monitoring"""
+            self.stop_monitoring()
+            return jsonify({'success': True, 'message': 'Monitoring stopped'})
+        
+    def register_socketio_handlers(self):
+        @self.socketio.on('start_monitoring')
+        def handle_start_monitoring():
+            self.start_monitoring()
+            emit('monitoring_status', {'monitoring': True})
+
+        @self.socketio.on('stop_monitoring')
+        def handle_stop_monitoring():
+            self.stop_monitoring()
+            emit('monitoring_status', {'monitoring': False})
+
+        @self.socketio.on('get_connections')
+        def handle_get_connections():
+            emit('connection_update', {
+                'connections': self.get_network_connections(),
+                'timestamp': datetime.now().isoformat()
+            })
+
+        @self.socketio.on('get_processes')
+        def handle_get_processes():
+            emit('processes_update', {
+                'processes': self.get_running_processes(),
+                'timestamp': datetime.now().isoformat()
+            })
+
+        @self.socketio.on('block_app')
+        def handle_block_app(data):
+            app_path = data.get('app_path')
+            if not app_path:
+                emit('error', {'message': 'Missing app_path'})
+                return
+            self.block_app(app_path)
+            emit('app_blocked', {'app_path': app_path})
+        @self.socketio.on('allow_app')
+        def handle_allow_app(data):
+            app_path = data.get('app_path')
+            if not app_path:
+                emit('error', {'message': 'Missing app_path'})
+                return
+            self.allow_app(app_path)
+            emit('app_allowed', {'app_path': app_path})
+
+        @self.socketio.on('get_rules')
+        def handle_get_rules():
+            emit('rules_update', {
+                'blocked_apps': list(self.blocked_apps),
+                'allowed_apps': list(self.allowed_apps)
+            })
+        @self.socketio.on('connect')
+        def handle_connect():
+            print("Client connected")
+            emit('connected', {'message': 'Connected to FirewallManager'})
+        @self.socketio.on('disconnect')
+        def handle_disconnect():
+            print("Client disconnected")
+            self.stop_monitoring()
+            emit('disconnected', {'message': 'Disconnected from FirewallManager'})
+
+    def create_index_html(self):
+    # Create templates directory and HTML file
+        os.makedirs('templates', exist_ok=True)
+        
+        # HTML Template
+        html_template = '''<!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>SimpleWall Clone</title>
+                <script src="https://cdn.socket.io/4.8.1/socket.io.min.js" integrity="sha384-mkQ3/7FUtcGyoppY6bz/PORYoGqOl7/aSUMn2ymDOJcapfS6PHqxhRTMh1RR0Q6+" crossorigin="anonymous"></script>
+                <style>
+                    * {
+                        margin: 0;
+                        padding: 0;
+                        box-sizing: border-box;
+                    }
+                    
+                    body {
+                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        min-height: 100vh;
+                        padding: 20px;
+                    }
+                    
+                    .container {
+                        max-width: 1200px;
+                        margin: 0 auto;
+                        background: rgba(255, 255, 255, 0.95);
+                        border-radius: 15px;
+                        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+                        overflow: hidden;
+                    }
+                    
+                    .header {
+                        background: linear-gradient(135deg, #2c3e50, #34495e);
+                        color: white;
+                        padding: 30px;
+                        text-align: center;
+                    }
+                    
+                    .header h1 {
+                        font-size: 2.5rem;
+                        margin-bottom: 10px;
+                    }
+                    
+                    .header p {
+                        opacity: 0.9;
+                        font-size: 1.1rem;
+                    }
+                    
+                    .nav-tabs {
+                        display: flex;
+                        background: #f8f9fa;
+                        border-bottom: 1px solid #e9ecef;
+                    }
+                    
+                    .nav-tab {
+                        flex: 1;
+                        padding: 15px 20px;
+                        text-align: center;
+                        cursor: pointer;
+                        border: none;
+                        background: none;
+                        font-size: 1rem;
+                        transition: all 0.3s ease;
+                    }
+                    
+                    .nav-tab.active {
+                        background: white;
+                        border-bottom: 3px solid #667eea;
+                        color: #667eea;
+                        font-weight: bold;
+                    }
+                    
+                    .nav-tab:hover {
+                        background: #e9ecef;
+                    }
+                    
+                    .tab-content {
+                        display: none;
+                        padding: 30px;
+                    }
+                    
+                    .tab-content.active {
+                        display: block;
+                    }
+                    
+                    .controls {
+                        display: flex;
+                        gap: 15px;
+                        margin-bottom: 30px;
+                        flex-wrap: wrap;
+                    }
+                    
+                    .btn {
+                        padding: 12px 24px;
+                        border: none;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        font-size: 1rem;
+                        font-weight: 500;
+                        transition: all 0.3s ease;
+                        text-transform: uppercase;
+                        letter-spacing: 1px;
+                    }
+                    
+                    .btn-primary {
+                        background: linear-gradient(135deg, #667eea, #764ba2);
+                        color: white;
+                    }
+                    
+                    .btn-success {
+                        background: linear-gradient(135deg, #56ab2f, #a8e6cf);
+                        color: white;
+                    }
+                    
+                    .btn-danger {
+                        background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+                        color: white;
+                    }
+                    
+                    .btn:hover {
+                        transform: translateY(-2px);
+                        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+                    }
+                    
+                    .table-container {
+                        background: white;
+                        border-radius: 10px;
+                        overflow: hidden;
+                        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+                    }
+                    
+                    table {
+                        width: 100%;
+                        border-collapse: collapse;
+                    }
+                    
+                    th, td {
+                        padding: 15px;
+                        text-align: left;
+                        border-bottom: 1px solid #e9ecef;
+                    }
+                    
+                    th {
+                        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+                        font-weight: 600;
+                        color: #495057;
+                        text-transform: uppercase;
+                        letter-spacing: 1px;
+                        font-size: 0.9rem;
+                        cursor: pointer;
+                        user-select: none;
+                        position: relative;
+                        transition: background-color 0.3s ease;
+                    }
+                    
+                    th:hover {
+                        background: linear-gradient(135deg, #e9ecef, #dee2e6);
+                    }
+                    
+                    th.sortable {
+                        padding-right: 30px;
+                    }
+                    
+                    .sort-icon {
+                        position: absolute;
+                        right: 8px;
+                        top: 50%;
+                        transform: translateY(-50%);
+                        font-size: 0.8rem;
+                        opacity: 0.5;
+                        transition: opacity 0.3s ease;
+                    }
+                    
+                    th:hover .sort-icon {
+                        opacity: 0.8;
+                    }
+                    
+                    th.sort-asc .sort-icon::before {
+                        content: '▲';
+                        opacity: 1;
+                        color: #667eea;
+                    }
+                    
+                    th.sort-desc .sort-icon::before {
+                        content: '▼';
+                        opacity: 1;
+                        color: #667eea;
+                    }
+                    
+                    th.sortable .sort-icon::before {
+                        content: '↕';
+                    }
+                    
+                    tr:hover {
+                        background: #f8f9fa;
+                    }
+                    
+                    .status-badge {
+                        padding: 5px 12px;
+                        border-radius: 20px;
+                        font-size: 0.8rem;
+                        font-weight: bold;
+                        text-transform: uppercase;
+                    }
+                    
+                    .status-allowed {
+                        background: #d4edda;
+                        color: #155724;
+                    }
+                    
+                    .status-blocked {
+                        background: #f8d7da;
+                        color: #721c24;
+                    }
+                    
+                    .status-connected {
+                        background: #cce7ff;
+                        color: #004085;
+                    }
+                    
+                    .action-buttons {
+                        display: flex;
+                        gap: 8px;
+                    }
+                    
+                    .btn-sm {
+                        padding: 6px 12px;
+                        font-size: 0.8rem;
+                    }
+                    
+                    .loading {
+                        text-align: center;
+                        padding: 40px;
+                        color: #6c757d;
+                    }
+                    
+                    .spinner {
+                        border: 4px solid #f3f3f3;
+                        border-top: 4px solid #667eea;
+                        border-radius: 50%;
+                        width: 40px;
+                        height: 40px;
+                        animation: spin 1s linear infinite;
+                        margin: 0 auto 20px;
+                    }
+                    
+                    @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
+                    
+                    .notification {
+                        position: fixed;
+                        top: 20px;
+                        right: 20px;
+                        padding: 15px 25px;
+                        border-radius: 8px;
+                        color: white;
+                        font-weight: 500;
+                        z-index: 1000;
+                        transition: all 0.3s ease;
+                    }
+                    
+                    .notification.success {
+                        background: linear-gradient(135deg, #56ab2f, #a8e6cf);
+                    }
+                    
+                    .notification.error {
+                        background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+                    }
+                    
+                    @media (max-width: 768px) {
+                        .nav-tabs {
+                            flex-direction: column;
+                        }
+                        
+                        .controls {
+                            flex-direction: column;
+                        }
+                        
+                        .btn {
+                            width: 100%;
+                        }
+                        
+                        table {
+                            font-size: 0.9rem;
+                        }
+                        
+                        th, td {
+                            padding: 10px 8px;
+                        }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>🛡️ SimpleWall Clone</h1>
+                        <p>Advanced Firewall Management System</p>
+                    </div>
+                    
+                    <div class="nav-tabs">
+                        <button class="nav-tab active" onclick="showTab('processes')">Running Processes</button>
+                        <button class="nav-tab" onclick="showTab('connections')">Network Connections</button>
+                        <button class="nav-tab" onclick="showTab('rules')">Firewall Rules</button>
+                    </div>
+                    
+                    <div id="processes" class="tab-content active">
+                        <div class="controls">
+                            <button class="btn btn-primary" onclick="refreshProcesses()">🔄 Refresh Processes</button>
+                            <button class="btn btn-success" onclick="startMonitoring()">▶️ Start Monitoring</button>
+                            <button class="btn btn-danger" onclick="stopMonitoring()">⏹️ Stop Monitoring</button>
+                        </div>
+                        
+                        <div class="table-container">
+                            <table id="processes-table-container">
+                                <thead>
+                                    <tr>
+                                        <th class="sortable" onclick="sortTable('processes-table-container', 0)">
+                                            Process Name <span class="sort-icon"></span>
+                                        </th>
+                                        <th class="sortable" onclick="sortTable('processes-table-container', 1)">
+                                            PID <span class="sort-icon"></span>
+                                        </th>
+                                        <th class="sortable" onclick="sortTable('processes-table-container', 2)">
+                                            Executable Path <span class="sort-icon"></span>
+                                        </th>
+                                        <th class="sortable" onclick="sortTable('processes-table-container', 3)">
+                                            Connections <span class="sort-icon"></span>
+                                        </th>
+                                        <th class="sortable" onclick="sortTable('processes-table-container', 4)">
+                                            Status <span class="sort-icon"></span>
+                                        </th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="processes-table">
+                                    <tr>
+                                        <td colspan="6" class="loading">
+                                            <div class="spinner"></div>
+                                            Loading processes...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div id="connections" class="tab-content">
+                        <div class="controls">
+                            <button class="btn btn-primary" onclick="refreshConnections()">🔄 Refresh Connections</button>
+                        </div>
+                        
+                        <div class="table-container">
+                            <table id="connections-table-container">
+                                <thead>
+                                    <tr>
+                                        <th class="sortable" onclick="sortTable('connections-table-container', 0)">
+                                            Process <span class="sort-icon"></span>
+                                        </th>
+                                        <th class="sortable" onclick="sortTable('connections-table-container', 1)">
+                                            PID <span class="sort-icon"></span>
+                                        </th>
+                                        <th class="sortable" onclick="sortTable('connections-table-container', 2)">
+                                            Local Address <span class="sort-icon"></span>
+                                        </th>
+                                        <th class="sortable" onclick="sortTable('connections-table-container', 3)">
+                                            Remote Address <span class="sort-icon"></span>
+                                        </th>
+                                        <th class="sortable" onclick="sortTable('connections-table-container', 4)">
+                                            Protocol <span class="sort-icon"></span>
+                                        </th>
+                                        <th class="sortable" onclick="sortTable('connections-table-container', 5)">
+                                            Status <span class="sort-icon"></span>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody id="connections-table">
+                                    <tr>
+                                        <td colspan="6" class="loading">
+                                            <div class="spinner"></div>
+                                            Loading connections...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div id="rules" class="tab-content">
+                        <div class="controls">
+                            <button class="btn btn-primary" onclick="refreshRules()">🔄 Refresh Rules</button>
+                        </div>
+                        
+                        <div class="table-container">
+                            <table id="rules-table-container">
+                                <thead>
+                                    <tr>
+                                        <th class="sortable" onclick="sortTable('rules-table-container', 0)">
+                                            Application Path <span class="sort-icon"></span>
+                                        </th>
+                                        <th class="sortable" onclick="sortTable('rules-table-container', 1)">
+                                            Rule Type <span class="sort-icon"></span>
+                                        </th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rules-table">
+                                    <tr>
+                                        <td colspan="3" class="loading">
+                                            <div class="spinner"></div>
+                                            Loading rules...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <script>
+                    const socket = io();
+                    var monitoringActive = false;
+                    
+                    // Sorting state for each table
+                    var sortStates = {};
+                    
+                    socket.on('connect', function() {
+                        console.log('Connected to server');
+                    });
+                    
+                    socket.on('connection_update', function(data) {
+                        if (document.getElementById('connections').classList.contains('active')) {
+                            displayConnections(data.connections);
+                        }
+                    });
+                    
+                    function showTab(tabName) {
+                        // Hide all tabs
+                        document.querySelectorAll('.tab-content').forEach(tab => {
+                            tab.classList.remove('active');
+                        });
+                        
+                        // Remove active class from all nav tabs
+                        document.querySelectorAll('.nav-tab').forEach(tab => {
+                            tab.classList.remove('active');
+                        });
+                        
+                        // Show selected tab
+                        document.getElementById(tabName).classList.add('active');
+                        event.target.classList.add('active');
+                        
+                        // Load data for the active tab
+                        if (tabName === 'processes') {
+                            refreshProcesses();
+                        } else if (tabName === 'connections') {
+                            refreshConnections();
+                        } else if (tabName === 'rules') {
+                            refreshRules();
+                        }
+                    }
+                    
+                    function sortTable(tableId, columnIndex) {
+                        const table = document.getElementById(tableId);
+                        const tbody = table.querySelector('tbody');
+                        const headers = table.querySelectorAll('th');
+                        const rows = Array.from(tbody.querySelectorAll('tr'));
+                        
+                        // Skip if table is loading or empty
+                        if (rows.length === 0 || rows[0].cells.length === 1) return;
+                        
+                        // Initialize sort state for this table if not exists
+                        if (!sortStates[tableId]) {
+                            sortStates[tableId] = { column: -1, direction: 'none' };
+                        }
+                        
+                        let sortDirection = 'asc';
+                        
+                        // Determine sort direction
+                        if (sortStates[tableId].column === columnIndex) {
+                            if (sortStates[tableId].direction === 'asc') {
+                                sortDirection = 'desc';
+                            } else if (sortStates[tableId].direction === 'desc') {
+                                sortDirection = 'asc';
+                            }
+                        }
+                        
+                        // Clear all header sort classes
+                        headers.forEach(header => {
+                            header.classList.remove('sort-asc', 'sort-desc');
+                        });
+                        
+                        // Add sort class to current header
+                        headers[columnIndex].classList.add(sortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+                        
+                        // Sort rows
+                        rows.sort((a, b) => {
+                            let aVal = a.cells[columnIndex].textContent.trim();
+                            let bVal = b.cells[columnIndex].textContent.trim();
+                            
+                            // Handle numeric columns (PID, Connections)
+                            if (columnIndex === 1 || columnIndex === 3) {
+                                aVal = parseInt(aVal) || 0;
+                                bVal = parseInt(bVal) || 0;
+                            } else {
+                                // For text columns, convert to lowercase for case-insensitive sorting
+                                aVal = aVal.toLowerCase();
+                                bVal = bVal.toLowerCase();
+                            }
+                            
+                            let comparison = 0;
+                            if (aVal > bVal) {
+                                comparison = 1;
+                            } else if (aVal < bVal) {
+                                comparison = -1;
+                            }
+                            
+                            return sortDirection === 'desc' ? -comparison : comparison;
+                        });
+                        
+                        // Clear tbody and append sorted rows
+                        tbody.innerHTML = '';
+                        rows.forEach(row => tbody.appendChild(row));
+                        
+                        // Update sort state
+                        sortStates[tableId] = { column: columnIndex, direction: sortDirection };
+                    }
+                    
+                    function refreshProcesses() {
+                        fetch('/firewall/processes')
+                            .then(response => response.json())
+                            .then(data => displayProcesses(data))
+                            .catch(error => showNotification('Error loading processes: ' + error, 'error'));
+                    }
+                    
+                    function refreshConnections() {
+                        fetch('/firewall/connections')
+                            .then(response => response.json())
+                            .then(data => displayConnections(data))
+                            .catch(error => showNotification('Error loading connections: ' + error, 'error'));
+                    }
+                    
+                    function refreshRules() {
+                        fetch('/firewall/rules')
+                            .then(response => response.json())
+                            .then(data => displayRules(data))
+                            .catch(error => showNotification('Error loading rules: ' + error, 'error'));
+                    }
+                    
+                    function displayProcesses(processes) {
+                        const tbody = document.getElementById('processes-table');
+                        if (processes.length === 0) {
+                            tbody.innerHTML = '<tr><td colspan="6" class="loading">No processes with network activity found</td></tr>';
+                            return;
+                        }
+                        
+                        tbody.innerHTML = processes.map(proc => `
+                            <tr>
+                                <td><strong>${proc.name}</strong></td>
+                                <td>${proc.pid}</td>
+                                <td title="${proc.exe}">${proc.exe.length > 50 ? proc.exe.substring(0, 50) + '...' : proc.exe}</td>
+                                <td>${proc.connections}</td>
+                                <td><span class="status-badge status-${proc.status}">${proc.status}</span></td>
+                                <td class="action-buttons">
+                                    ${proc.status === 'blocked' ? 
+                                        `<button class="btn btn-success btn-sm" onclick="allowApp('${proc.exe}')">✅ Allow</button>` :
+                                        `<button class="btn btn-danger btn-sm" onclick="blockApp('${proc.exe}')">🚫 Block</button>`
+                                    }
+                                </td>
+                            </tr>
+                        `).join('');
+                    }
+                    
+                    function displayConnections(connections) {
+                        const tbody = document.getElementById('connections-table');
+                        if (connections.length === 0) {
+                            tbody.innerHTML = '<tr><td colspan="6" class="loading">No active connections found</td></tr>';
+                            return;
+                        }
+                        
+                        tbody.innerHTML = connections.map(conn => `
+                            <tr>
+                                <td><strong>${conn.process}</strong></td>
+                                <td>${conn.pid}</td>
+                                <td>${conn.local_addr}</td>
+                                <td>${conn.remote_addr}</td>
+                                <td>${conn.protocol}</td>
+                                <td><span class="status-badge status-connected">${conn.status}</span></td>
+                            </tr>
+                        `).join('');
+                    }
+                    
+                    function displayRules(rules) {
+                        const tbody = document.getElementById('rules-table');
+                        const allRules = [
+                            ...rules.blocked_apps.map(app => ({app, type: 'blocked'})),
+                            ...rules.allowed_apps.map(app => ({app, type: 'allowed'}))
+                        ];
+                        
+                        if (allRules.length === 0) {
+                            tbody.innerHTML = '<tr><td colspan="3" class="loading">No firewall rules configured</td></tr>';
+                            return;
+                        }
+                        
+                        tbody.innerHTML = allRules.map(rule => `
+                            <tr>
+                                <td title="${rule.app}">${rule.app.length > 60 ? rule.app.substring(0, 60) + '...' : rule.app}</td>
+                                <td><span class="status-badge status-${rule.type}">${rule.type}</span></td>
+                                <td class="action-buttons">
+                                    ${rule.type === 'blocked' ? 
+                                        `<button class="btn btn-success btn-sm" onclick="allowApp('${rule.app}')">✅ Allow</button>` :
+                                        `<button class="btn btn-danger btn-sm" onclick="blockApp('${rule.app}')">🚫 Block</button>`
+                                    }
+                                </td>
+                            </tr>
+                        `).join('');
+                    }
+                    
+                    function blockApp(appPath) {
+                        console.log(`Blocking application: ${appPath}`);
+                        fetch('/firewall/block', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({app_path: appPath})
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                showNotification(data.message, 'success');
+                                refreshProcesses();
+                                refreshRules();
+                            } else {
+                                showNotification(data.error, 'error');
+                            }
+                        })
+                        .catch(error => showNotification('Error: ' + error, 'error'));
+                    }
+                    
+                    function allowApp(appPath) {
+                        fetch('/firewall/allow', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({app_path: appPath})
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                showNotification(data.message, 'success');
+                                refreshProcesses();
+                                refreshRules();
+                            } else {
+                                showNotification(data.error, 'error');
+                            }
+                        })
+                        .catch(error => showNotification('Error: ' + error, 'error'));
+                    }
+                    
+                    function startMonitoring() {
+                        fetch('/firewall/monitoring/start', {method: 'POST'})
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success) {
+                                    monitoringActive = true;
+                                    showNotification(data.message, 'success');
+                                }
+                            })
+                            .catch(error => showNotification('Error: ' + error, 'error'));
+                    }
+                    
+                    function stopMonitoring() {
+                        fetch('/firewall/monitoring/stop', {method: 'POST'})
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success) {
+                                    monitoringActive = false;
+                                    showNotification(data.message, 'success');
+                                }
+                            })
+                            .catch(error => showNotification('Error: ' + error, 'error'));
+                    }
+                    
+                    function showNotification(message, type) {
+                        const notification = document.createElement('div');
+                        notification.className = `notification ${type}`;
+                        notification.textContent = message;
+                        document.body.appendChild(notification);
+                        
+                        setTimeout(() => {
+                            notification.style.opacity = '0';
+                            setTimeout(() => document.body.removeChild(notification), 300);
+                        }, 3000);
+                    }
+                    
+                    // Load initial data
+                    refreshProcesses();
+                </script>
+            </body>
+            </html>'''
+      
+        with open('templates/index.html', 'w', encoding='utf-8') as f:
+            f.write(html_template)
+
+
+        

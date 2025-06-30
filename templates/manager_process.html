@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}Management System - Firewall Monitor{% endblock %}
+
+
+{% block style %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/manager_process.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-cogs"></i> Management System</h2>
+    <div>
+    </div>
+</div>
+<div class="nav-tabs">
+    <button class="nav-tab active" onclick="showTab('processes')">Running Processes</button>
+    <button class="nav-tab" onclick="showTab('connections')">Network Connections</button>
+    <button class="nav-tab" onclick="showTab('rules')">Firewall Rules</button>
+</div>
+
+<div id="processes" class="tab-content active">
+    <div class="controls">
+        <button class="btn btn-primary" onclick="refreshProcesses()">🔄 Refresh Processes</button>
+    </div>
+    
+    <div class="table-container">
+        <table id="processes-table-container">
+            <thead>
+                <tr>
+                    <th class="sortable" onclick="sortTable('processes-table-container', 0)">
+                        Process Name <span class="sort-icon"></span>
+                    </th>
+                    <th class="sortable" onclick="sortTable('processes-table-container', 1)">
+                        PID <span class="sort-icon"></span>
+                    </th>
+                    <th class="sortable" onclick="sortTable('processes-table-container', 2)">
+                        Executable Path <span class="sort-icon"></span>
+                    </th>
+                    <th class="sortable" onclick="sortTable('processes-table-container', 3)">
+                        Connections <span class="sort-icon"></span>
+                    </th>
+                    <th class="sortable" onclick="sortTable('processes-table-container', 4)">
+                        Status <span class="sort-icon"></span>
+                    </th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="processes-table">
+                <tr>
+                    <td colspan="6" class="loading">
+                        <div class="spinner"></div>
+                        Loading processes...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div id="connections" class="tab-content">
+    <div class="controls">
+        <button class="btn btn-primary" onclick="refreshConnections()">🔄 Refresh Connections</button>
+    </div>
+    
+    <div class="table-container">
+        <table id="connections-table-container">
+            <thead>
+                <tr>
+                    <th class="sortable" onclick="sortTable('connections-table-container', 0)">
+                        Process <span class="sort-icon"></span>
+                    </th>
+                    <th class="sortable" onclick="sortTable('connections-table-container', 1)">
+                        PID <span class="sort-icon"></span>
+                    </th>
+                    <th class="sortable" onclick="sortTable('connections-table-container', 2)">
+                        Local Address <span class="sort-icon"></span>
+                    </th>
+                    <th class="sortable" onclick="sortTable('connections-table-container', 3)">
+                        Remote Address <span class="sort-icon"></span>
+                    </th>
+                    <th class="sortable" onclick="sortTable('connections-table-container', 4)">
+                        Protocol <span class="sort-icon"></span>
+                    </th>
+                    <th class="sortable" onclick="sortTable('connections-table-container', 5)">
+                        Status <span class="sort-icon"></span>
+                    </th>
+                </tr>
+            </thead>
+            <tbody id="connections-table">
+                <tr>
+                    <td colspan="6" class="loading">
+                        <div class="spinner"></div>
+                        Loading connections...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div id="rules" class="tab-content">
+    <div class="controls">
+        <button class="btn btn-primary" onclick="refreshRules()">🔄 Refresh Rules</button>
+    </div>
+    
+    <div class="table-container">
+        <table id="rules-table-container">
+            <thead>
+                <tr>
+                    <th class="sortable" onclick="sortTable('rules-table-container', 0)">
+                        Application Path <span class="sort-icon"></span>
+                    </th>
+                    <th class="sortable" onclick="sortTable('rules-table-container', 1)">
+                        Rule Type <span class="sort-icon"></span>
+                    </th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="rules-table">
+                <tr>
+                    <td colspan="3" class="loading">
+                        <div class="spinner"></div>
+                        Loading rules...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+  
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/manager_process.js') }}"></script>
+{% endblock %}

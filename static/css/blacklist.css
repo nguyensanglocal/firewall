@@ -1,0 +1,58 @@
+
+.sortable {
+    cursor: pointer;
+    position: relative;
+    user-select: none;
+}
+
+.sortable:hover {
+    background-color: rgba(0,0,0,0.05);
+}
+
+.sort-icon {
+    opacity: 0.3;
+    margin-left: 5px;
+    font-size: 0.8em;
+}
+
+.sortable.asc .sort-icon {
+    opacity: 1;
+}
+
+.sortable.desc .sort-icon {
+    opacity: 1;
+}
+
+.sortable.asc .sort-icon:before {
+    content: "\f0de"; /* fa-sort-up */
+}
+
+.sortable.desc .sort-icon:before {
+    content: "\f0dd"; /* fa-sort-down */
+}
+
+.pagination-sm .page-link {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+#searchInput:focus,
+#entriesPerPage:focus,
+#statusFilter:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+.sortable:hover {
+    background-color: rgba(0,0,0,0.05);
+}
+
+.badge {
+    font-size: 0.75em;
+}
+
+code {
+    font-size: 0.9em;
+    padding: 0.2em 0.4em;
+    border-radius: 0.25rem;
+}

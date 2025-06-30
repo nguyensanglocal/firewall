@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+{% block title %}Security Alerts - Firewall Monitor{% endblock %}
+
+{% block style %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/alerts.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-exclamation-triangle"></i> Security Alerts</h2>
+    <div>
+        <button class="btn btn-outline-success" onclick="resolveAllAlerts()">
+            <i class="fas fa-check-double"></i> Resolve All
+        </button>
+        <button class="btn btn-outline-primary" onclick="location.reload()">
+            <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-danger text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-fire fa-2x mb-2"></i>
+                <h5>Critical Alerts</h5>
+                <h2>{{ alerts|selectattr('4', '>=', 3)|list|length }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                <h5>Warning Alerts</h5>
+                <h2>{{ alerts|selectattr('4', '==', 2)|list|length }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-info-circle fa-2x mb-2"></i>
+                <h5>Info Alerts</h5>
+                <h2>{{ alerts|selectattr('4', '==', 1)|list|length }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-check-circle fa-2x mb-2"></i>
+                <h5>Resolved</h5>
+                <h2>{{ alerts|selectattr('6', '==', 1)|list|length }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-5">
+        <div class="input-group">
+            <span class="input-group-text"><i class="fas fa-search"></i></span>
+            <input type="text" class="form-control" id="searchAlerts" placeholder="Search alerts by IP or message...">
+        </div>
+    </div>
+    <div class="col-md-2">
+        <select class="form-select" id="filterSeverity">
+            <option value="">All Severities</option>
+            <option value="3">Critical (3+)</option>
+            <option value="2">Warning (2)</option>
+            <option value="1">Info (1)</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <select class="form-select" id="filterStatus">
+            <option value="">All Status</option>
+            <option value="0">Active</option>
+            <option value="1">Resolved</option>
+        </select>
+    </div>
+    <div class="col-md-3">
+        <div class="d-flex align-items-center justify-content-end">
+            <small class="text-muted me-2">Total:</small>
+            <span class="badge bg-primary me-3" id="totalCount">0</span>
+            <select class="form-select" id="itemsPerPage" style="width: auto;">
+                <option value="10">10 per page</option>
+                <option value="25">25 per page</option>
+                <option value="50">50 per page</option>
+                <option value="100">100 per page</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5><i class="fas fa-bell"></i> Alert History</h5>
+    </div>
+    <div class="card-body p-0">
+        {% if alerts %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="alertsTable">
+                <thead>
+                    <tr>
+                        <th class="sortable" data-sort="severity">
+                            <i class="fas fa-exclamation-circle"></i> Severity
+                            <i class="fas fa-sort ms-1 sort-icon"></i>
+                        </th>
+                        <th class="sortable" data-sort="ip">
+                            <i class="fas fa-network-wired"></i> IP Address
+                            <i class="fas fa-sort ms-1 sort-icon"></i>
+                        </th>
+                        <th class="sortable" data-sort="type">
+                            <i class="fas fa-tag"></i> Alert Type
+                            <i class="fas fa-sort ms-1 sort-icon"></i>
+                        </th>
+                        <th><i class="fas fa-comment"></i> Message</th>
+                        <th class="sortable" data-sort="timestamp">
+                            <i class="fas fa-clock"></i> Timestamp
+                            <i class="fas fa-sort ms-1 sort-icon"></i>
+                        </th>
+                        <th class="sortable" data-sort="status">
+                            <i class="fas fa-toggle-on"></i> Status
+                            <i class="fas fa-sort ms-1 sort-icon"></i>
+                        </th>
+                        <th><i class="fas fa-cogs"></i> Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for id, ip_address, alert_type, message, severity, timestamp, is_resolved in alerts %}
+                    <tr class="alert-row {% if severity >= 3 and not is_resolved %}table-danger{% elif severity >= 2 and not is_resolved %}table-warning{% elif is_resolved %}table-light{% endif %}"
+                        data-severity="{{ severity }}" data-resolved="{{ is_resolved }}" data-ip="{{ ip_address }}"
+                        data-type="{{ alert_type }}" data-timestamp="{{ timestamp }}"
+                        data-message="{{ message|lower }}">
+                        <td class="text-center">
+                            <div class="d-flex align-items-center">
+                                {% if severity >= 3 %}
+                                <i class="fas fa-fire text-danger me-2"></i>
+                                <span class="badge bg-danger">CRITICAL</span>
+                                {% elif severity >= 2 %}
+                                <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                                <span class="badge bg-warning">WARNING</span>
+                                {% else %}
+                                <i class="fas fa-info-circle text-info me-2"></i>
+                                <span class="badge bg-info">INFO</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            <code
+                                class="{% if severity >= 3 %}text-danger{% elif severity >= 2 %}text-warning{% endif %}">
+                                {{ ip_address }}
+                            </code>
+                        </td>
+                        <td>
+                            <span
+                                class="badge {% if alert_type == 'HIGH_THREAT' %}bg-danger{% elif alert_type == 'RATE_LIMIT' %}bg-warning{% elif alert_type == 'BLOCKED' %}bg-dark{% else %}bg-secondary{% endif %}">
+                                {{ alert_type }}
+                            </span>
+                        </td>
+                        <td>
+                            <small>{{ message }}</small>
+                        </td>
+                        <td>
+                            <small>{{ timestamp }}</small>
+                        </td>
+                        <td>
+                            {% if is_resolved %}
+                            <span class="badge bg-success">
+                                <i class="fas fa-check"></i> Resolved
+                            </span>
+                            {% else %}
+                            <span class="badge bg-danger">
+                                <i class="fas fa-exclamation"></i> Active
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if not is_resolved %}
+                            <div class="btn-group btn-group-sm">
+                                <a href="/resolve_alert/{{ id }}" class="btn btn-outline-success" title="Resolve Alert">
+                                    <i class="fas fa-check"></i>
+                                </a>
+                                <button class="btn btn-outline-danger"
+                                    onclick="blockIP('{{ ip_address }}', '{{ alert_type }}')" title="Block IP">
+                                    <i class="fas fa-ban"></i>
+                                </button>
+                                <button class="btn btn-outline-info"
+                                    onclick="showAlertDetails({{ id }}, '{{ ip_address }}', '{{ alert_type }}', '{{ message }}', '{{ timestamp }}')"
+                                    title="View Details">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            {% else %}
+                            <span class="text-muted small">No actions</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="d-flex justify-content-between align-items-center p-3 border-top">
+            <div class="d-flex align-items-center">
+                <small class="text-muted me-3">
+                    Showing <span id="showingStart">1</span> to <span id="showingEnd">10</span> of <span
+                        id="showingTotal">0</span> entries
+                </small>
+            </div>
+            <nav aria-label="Alert pagination">
+                <ul class="pagination pagination-sm mb-0" id="pagination">
+                    <!-- Pagination will be generated by JavaScript -->
+                </ul>
+            </nav>
+        </div>
+
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-shield-alt fa-4x text-success mb-3"></i>
+            <h4>No security alerts</h4>
+            <p class="text-muted">Your system is secure with no active alerts.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Alert Details Modal -->
+<div class="modal fade" id="alertDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-circle"></i> Alert Details
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <strong>IP Address:</strong>
+                        <p><code id="modalIP"></code></p>
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Alert Type:</strong>
+                        <p><span id="modalType" class="badge"></span></p>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        <strong>Message:</strong>
+                        <p id="modalMessage"></p>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <strong>Timestamp:</strong>
+                        <p id="modalTimestamp"></p>
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Recommended Actions:</strong>
+                        <ul id="modalActions">
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-danger" id="modalBlockBtn">
+                    <i class="fas fa-ban"></i> Block IP
+                </button>
+                <button type="button" class="btn btn-success" id="modalResolveBtn">
+                    <i class="fas fa-check"></i> Resolve Alert
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/alerts.js') }}"></script>
+{% endblock %}

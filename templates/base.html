@@ -1,0 +1,91 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" id="favicon" href="chrome://global/skin/icons/info.svg">
+    <title>{% block title %}Firewall Monitor{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .threat-high { color: #dc3545; font-weight: bold; }
+        .threat-medium { color: #fd7e14; font-weight: bold; }
+        .threat-low { color: #28a745; }
+        .suspicious { background-color: #fff3cd; }
+        .navbar-brand { font-weight: bold; }
+        .card { border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .table-hover tbody tr:hover { background-color: #f8f9fa; }
+        .alert-animate { animation: pulse 2s infinite; }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        .status-online { background-color: #28a745; }
+        .status-warning { background-color: #ffc107; }
+        .status-danger { background-color: #dc3545; }
+        .modal-dialog {
+            margin-top: 6.5rem;
+        }
+
+    </style>
+     {% block style %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+        <a class="navbar-brand" href="/">
+            <i class="fas fa-shield-alt"></i> Firewall Monitor
+            <span class="status-indicator status-online"></span>
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+            aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link {% if request.path == '/' %}active fw-bold text-warning{% endif %}" href="/">
+                    <i class="fas fa-tachometer-alt"></i> Dashboard
+                </a>
+                <a class="nav-link {% if request.path.startswith('/firewall') %}active fw-bold text-warning{% endif %}" href="/firewall">
+                    <i class="fas fa-cogs"></i> Process System
+                </a>
+                <a class="nav-link {% if request.path.startswith('/suspicious') %}active fw-bold text-warning{% endif %}" href="/suspicious">
+                    <i class="fas fa-fingerprint"></i> Suspicious (24h)
+                </a>
+                <a class="nav-link {% if request.path.startswith('/wireshark') %}active fw-bold text-warning{% endif %}" href="/wireshark">
+                    <i class="fas fa-list"></i> Requests (24h)
+                </a>
+                <a class="nav-link {% if request.path.startswith('/blacklist') %}active fw-bold text-warning{% endif %}" href="/blacklist">
+                    <i class="fas fa-network-wired"></i> IP/Domain
+                </a>
+                <a class="nav-link {% if request.path.startswith('/alerts') %}active fw-bold text-warning{% endif %}" href="/alerts">
+                    <i class="fas fa-exclamation-triangle"></i> Alerts
+                </a>
+
+            </div>
+        </div>
+    </div>
+</nav>
+
+    
+    <div class="container mt-4">
+        {% block content %}{% endblock %}
+    </div>
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js" integrity="sha384-mkQ3/7FUtcGyoppY6bz/PORYoGqOl7/aSUMn2ymDOJcapfS6PHqxhRTMh1RR0Q6+" crossorigin="anonymous"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="{{ url_for('static', filename='js/base.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
+    

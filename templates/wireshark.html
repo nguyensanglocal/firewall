@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Packet Analyzer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #eee;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-start { background-color: #28a745; color: white; }
+        .btn-stop { background-color: #dc3545; color: white; }
+        .btn-clear { background-color: #6c757d; color: white; }
+        .btn:hover { opacity: 0.8; }
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+        .stat-item {
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+        }
+        .packet-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .packet-table th, .packet-table td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+            font-size: 12px;
+        }
+        .packet-table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+        }
+        .packet-table tr:hover {
+            background-color: #f5f5f5;
+            cursor: pointer;
+        }
+        .packet-detail {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            display: none;
+        }
+        .detail-section {
+            margin-bottom: 15px;
+        }
+        .detail-title {
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        .detail-content {
+            background-color: white;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        .status-capturing { background-color: #28a745; }
+        .status-stopped { background-color: #dc3545; }
+        .hex-dump {
+            font-family: monospace;
+            font-size: 11px;
+            line-height: 1.4;
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌐 Network Packet Analyzer</h1>
+            <div class="controls">
+                <button class="btn btn-start" onclick="startCapture()">Bắt đầu</button>
+                <button class="btn btn-stop" onclick="stopCapture()">Dừng</button>
+                <button class="btn btn-clear" onclick="clearPackets()">Xóa</button>
+            </div>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-number" id="totalPackets">0</div>
+                <div class="stat-label">Tổng gói tin</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="tcpPackets">0</div>
+                <div class="stat-label">TCP</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="udpPackets">0</div>
+                <div class="stat-label">UDP</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="icmpPackets">0</div>
+                <div class="stat-label">ICMP</div>
+            </div>
+            <div class="stat-item">
+                <span class="status-indicator" id="statusIndicator"></span>
+                <span id="statusText">Đã dừng</span>
+            </div>
+        </div>
+        
+        <div style="max-height: 400px; overflow-y: auto;">
+            <table class="packet-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Thời gian</th>
+                        <th>Nguồn</th>
+                        <th>Đích</th>
+                        <th>Giao thức</th>
+                        <th>Kích thước</th>
+                        <th>Thông tin</th>
+                    </tr>
+                </thead>
+                <tbody id="packetTableBody">
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="packet-detail" id="packetDetail">
+            <h3>Chi tiết gói tin</h3>
+            <div id="detailContent"></div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let packets = [];
+        let stats = { total_packets: 0, protocol_stats: {}, is_capturing: false };
+
+        // Kết nối WebSocket
+        socket.on('connect', function() {
+            console.log('Connected to server');
+            updateStats();
+        });
+
+        socket.on('new_packet', function(packet) {
+            packets.push(packet);
+            if (packets.length > 1000) {
+                packets.shift();
+            }
+            addPacketToTable(packet);
+            updateStats();
+        });
+
+        socket.on('error', function(data) {
+            alert('Lỗi: ' + data.message);
+        });
+
+        function startCapture() {
+            fetch('/api/start_capture', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        updateStatus(true);
+                    } else {
+                        alert(data.message);
+                    }
+                });
+        }
+
+        function stopCapture() {
+            fetch('/api/stop_capture', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    updateStatus(false);
+                });
+        }
+
+        function clearPackets() {
+            fetch('/api/clear_packets', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    packets = [];
+                    document.getElementById('packetTableBody').innerHTML = '';
+                    document.getElementById('packetDetail').style.display = 'none';
+                    updateStats();
+                });
+        }
+
+        function addPacketToTable(packet) {
+            const tbody = document.getElementById('packetTableBody');
+            const row = tbody.insertRow(0);
+            
+            const srcInfo = packet.ip ? packet.ip.src_ip : 'N/A';
+            const destInfo = packet.ip ? packet.ip.dest_ip : 'N/A';
+            const protocol = packet.protocol || 'Unknown';
+            
+            let info = '';
+            if (packet.tcp) {
+                info = `${packet.tcp.src_port} → ${packet.tcp.dest_port} [${packet.tcp.flag_names.join(',')}]`;
+            } else if (packet.udp) {
+                info = `${packet.udp.src_port} → ${packet.udp.dest_port}`;
+            } else if (packet.icmp) {
+                info = packet.icmp.type_name;
+            }
+            
+            row.innerHTML = `
+                <td>${packet.id}</td>
+                <td>${packet.timestamp}</td>
+                <td>${srcInfo}</td>
+                <td>${destInfo}</td>
+                <td>${protocol}</td>
+                <td>${packet.size}</td>
+                <td>${info}</td>
+            `;
+            
+            row.onclick = () => showPacketDetail(packet);
+        }
+
+        function showPacketDetail(packet) {
+            const detail = document.getElementById('packetDetail');
+            const content = document.getElementById('detailContent');
+            
+            let html = '';
+            
+            if (packet.ethernet) {
+                html += `
+                    <div class="detail-section">
+                        <div class="detail-title">Ethernet Header</div>
+                        <div class="detail-content">
+                            Source MAC: ${packet.ethernet.src_mac}<br>
+                            Destination MAC: ${packet.ethernet.dest_mac}<br>
+                            Type: ${packet.ethernet.type_name} (${packet.ethernet.type})
+                        </div>
+                    </div>
+                `;
+            }
+            
+            if (packet.ip) {
+                html += `
+                    <div class="detail-section">
+                        <div class="detail-title">IP Header</div>
+                        <div class="detail-content">
+                            Version: ${packet.ip.version}<br>
+                            Header Length: ${packet.ip.header_length} bytes<br>
+                            Type of Service: ${packet.ip.tos}<br>
+                            Total Length: ${packet.ip.total_length}<br>
+                            Identification: ${packet.ip.identification}<br>
+                            Flags: ${packet.ip.flags}<br>
+                            Fragment Offset: ${packet.ip.fragment_offset}<br>
+                            TTL: ${packet.ip.ttl}<br>
+                            Protocol: ${packet.ip.protocol_name} (${packet.ip.protocol})<br>
+                            Checksum: ${packet.ip.checksum}<br>
+                            Source IP: ${packet.ip.src_ip}<br>
+                            Destination IP: ${packet.ip.dest_ip}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            if (packet.tcp) {
+                html += `
+                    <div class="detail-section">
+                        <div class="detail-title">TCP Header</div>
+                        <div class="detail-content">
+                            Source Port: ${packet.tcp.src_port}<br>
+                            Destination Port: ${packet.tcp.dest_port}<br>
+                            Sequence Number: ${packet.tcp.seq_num}<br>
+                            Acknowledgment Number: ${packet.tcp.ack_num}<br>
+                            Data Offset: ${packet.tcp.data_offset} bytes<br>
+                            Flags: ${packet.tcp.flag_names.join(', ')} (${packet.tcp.flags})<br>
+                            Window Size: ${packet.tcp.window_size}<br>
+                            Checksum: ${packet.tcp.checksum}<br>
+                            Urgent Pointer: ${packet.tcp.urgent_ptr}
+                        </div>
+                    </div>
+                `;
+            } else if (packet.udp) {
+                html += `
+                    <div class="detail-section">
+                        <div class="detail-title">UDP Header</div>
+                        <div class="detail-content">
+                            Source Port: ${packet.udp.src_port}<br>
+                            Destination Port: ${packet.udp.dest_port}<br>
+                            Length: ${packet.udp.length}<br>
+                            Checksum: ${packet.udp.checksum}
+                        </div>
+                    </div>
+                `;
+            } else if (packet.icmp) {
+                html += `
+                    <div class="detail-section">
+                        <div class="detail-title">ICMP Header</div>
+                        <div class="detail-content">
+                            Type: ${packet.icmp.type_name} (${packet.icmp.type})<br>
+                            Code: ${packet.icmp.code}<br>
+                            Checksum: ${packet.icmp.checksum}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Hex dump
+            html += `
+                <div class="detail-section">
+                    <div class="detail-title">Raw Data (Hex)</div>
+                    <div class="hex-dump">${formatHexDump(packet.raw_data)}</div>
+                </div>
+            `;
+            
+            content.innerHTML = html;
+            detail.style.display = 'block';
+        }
+
+        function formatHexDump(hexString) {
+            let result = '';
+            for (let i = 0; i < hexString.length; i += 32) {
+                const line = hexString.substr(i, 32);
+                const offset = (i / 2).toString(16).padStart(4, '0');
+                const hex = line.match(/.{1,2}/g).join(' ');
+                result += `${offset}: ${hex}
+`;
+            }
+            return result;
+        }
+
+        function updateStats() {
+            fetch('/api/stats_wireshark')
+                .then(response => response.json())
+                .then(data => {
+                    stats = data;
+                    document.getElementById('totalPackets').textContent = stats.total_packets;
+                    document.getElementById('tcpPackets').textContent = stats.protocol_stats.TCP || 0;
+                    document.getElementById('udpPackets').textContent = stats.protocol_stats.UDP || 0;
+                    document.getElementById('icmpPackets').textContent = stats.protocol_stats.ICMP || 0;
+                    updateStatus(stats.is_capturing);
+                });
+        }
+
+        function updateStatus(isCapturing) {
+            const indicator = document.getElementById('statusIndicator');
+            const text = document.getElementById('statusText');
+            
+            if (isCapturing) {
+                indicator.className = 'status-indicator status-capturing';
+                text.textContent = 'Đang bắt gói tin';
+            } else {
+                indicator.className = 'status-indicator status-stopped';
+                text.textContent = 'Đã dừng';
+            }
+        }
+
+        // Cập nhật stats định kỳ
+        setInterval(updateStats, 2000);
+        
+        // Load packets ban đầu
+        fetch('/api/packets')
+            .then(response => response.json())
+            .then(data => {
+                packets = data;
+                const tbody = document.getElementById('packetTableBody');
+                tbody.innerHTML = '';
+                packets.forEach(packet => addPacketToTable(packet));
+                updateStats();
+            });
+    </script>
+</body>
+</html>

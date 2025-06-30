@@ -1,0 +1,202 @@
+
+{% extends "base.html" %}
+{% block title %}Dashboard - Firewall Monitor{% endblock %}
+
+{% block content %}
+
+
+{% block style %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+{% endblock %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-tachometer-alt"></i> Security Dashboard</h2>
+    <div>
+        <button class="btn btn-outline-primary" onclick="refreshData()">
+            <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+        <span class="badge bg-success ms-2">Online</span>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <a href="/logs" class="text-decoration-none text-white">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <i class="fas fa-globe fa-2x mb-2"></i>
+                    <h5>Requests (24h)</h5>
+                    <h2>{{ total_requests_24h }}</h2>
+                    <small>Total incoming requests</small>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <a href="/suspicious" class="text-decoration-none text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                <h5>Suspicious (24h)</h5>
+                <h2>{{ suspicious_requests_24h }}</h2>
+                <small>Potentially malicious</small>
+            </div>
+            </a>
+        </div>
+    </div>
+    <div class="col-md-3">
+       <a href="/blacklist" class="text-decoration-none text-white">
+            <div class="card bg-danger text-white">
+                <div class="card-body text-center">
+                    <i class="fas fa-ban fa-2x mb-2"></i>
+                    <h5>Blacklisted IPs</h5>
+                    <h2>{{ total_blacklisted }}</h2>
+                    <small>Blocked addresses</small>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3">
+        <a href="/alerts" class="text-decoration-none text-white">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <i class="fas fa-bell fa-2x mb-2"></i>
+                    <h5>Active Alerts</h5>
+                    <h2>{{ active_alerts }}</h2>
+                    <small>Needs attention</small>
+                </div>
+            </div>
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-gradient">
+                <a href="/suspicious" class="text-decoration-none text-dark">
+                <h5><i class="fas fa-user-secret"></i> Top Suspicious IPs (24h)</h5>
+                </a>
+            </div>
+            <div class="card-body">
+                {% if top_suspicious_ips %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th><i class="fas fa-network-wired"></i> IP Address</th>
+                                <th><i class="fas fa-chart-bar"></i> Requests</th>
+                                <th><i class="fas fa-thermometer-half"></i> Avg Threat</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ip, count, avg_threat, is_activate in top_suspicious_ips %}
+                            <tr>
+                                <td>
+                                    <code>{{ ip }}</code>
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ count }}</span>
+                                </td>
+                                <td>
+                                    <span class="{% if avg_threat >= 4 %}threat-high{% elif avg_threat >= 2 %}threat-medium{% else %}threat-low{% endif %}">
+                                        <i class="fas fa-{% if avg_threat >= 4 %}fire{% elif avg_threat >= 2 %}exclamation{% else %}check{% endif %}"></i>
+                                        {{ "%.1f"|format(avg_threat) }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if is_activate %}
+                                    <a href="/remove_blacklist/{{ ip }}" class="btn btn-sm btn-outline-success" 
+                                   onclick="return confirm('Are you sure you want to remove {{ ip }} from blacklist?')">
+                                        <i class="fas fa-check"></i> Unblock
+                                    </a>
+                                    {% else %}
+                                    <a href="#" class="btn btn-sm btn-outline-danger" onclick="blockIP('{{ ip }}', ' Top Suspicious IPs (24h)')">
+                                        <i class="fas fa-ban"></i> Block
+                                    </a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-shield-alt fa-3x mb-3"></i>
+                    <p>No suspicious activity detected</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <a href="/alerts" class="text-decoration-none text-dark">
+            <div class="card-header bg-gradient">
+                <h5><i class="fas fa-exclamation-circle"></i> Recent Alerts</h5>
+            </div>
+            </a>
+            <div class="card-body">
+                {% if recent_alerts %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>IP</th>
+                                <th>Type</th>
+                                <th>Time</th>
+                                <th>Severity</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ip, alert_type, message, severity, timestamp in recent_alerts %}
+                            <tr class="{% if severity >= 3 %}alert-animate{% endif %}">
+                                <td><code>{{ ip }}</code></td>
+                                <td>
+                                    <span class="badge {% if alert_type == 'HIGH_THREAT' %}bg-danger{% elif alert_type == 'RATE_LIMIT' %}bg-warning{% else %}bg-info{% endif %}">
+                                        {{ alert_type }}
+                                    </span>
+                                </td>
+                                <td><small>{{ timestamp }}</small></td>
+                                <td>
+                                    <span class="badge {% if severity >= 3 %}bg-danger{% elif severity >= 2 %}bg-warning{% else %}bg-info{% endif %}">
+                                        {% for i in range(severity) %}<i class="fas fa-star"></i>{% endfor %}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-check-circle fa-3x mb-3"></i>
+                    <p>No active alerts</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-line"></i> Request Activity (Last 24 Hours)</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="activityChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}
+    

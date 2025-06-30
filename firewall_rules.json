@@ -1,0 +1,10 @@
+{
+  "blocked_apps": [],
+  "allowed_apps": [
+    "C:/Windows/System32/svchost.exe",
+    "C:/Program Files/Python312/python.exe",
+    "C:/Users/ADMIN/AppData/Local/Programs/Microsoft VS Code/Code.exe",
+    "C:/Program Files/Mozilla Firefox/firefox.exe"
+  ],
+  "last_updated": "2025-06-30T18:44:20.647114"
+}

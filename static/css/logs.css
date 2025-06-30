@@ -1,0 +1,29 @@
+.sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+}
+
+.sortable:hover {
+    background-color: rgba(0,0,0,0.05);
+}
+
+.sort-icon {
+    margin-left: 5px;
+    opacity: 0.5;
+    font-size: 0.8em;
+}
+
+.sortable.sorted-asc .sort-icon:before {
+    content: "\f0de";
+    opacity: 1;
+}
+
+.sortable.sorted-desc .sort-icon:before {
+    content: "\f0dd";
+    opacity: 1;
+}
+
+.table-row-hidden {
+    display: none !important;
+}
