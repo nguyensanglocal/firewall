@@ -19,7 +19,7 @@
 
 2. Cài đặt các thư viện phụ thuộc (nếu có):
    ```
-   pip install -r requirements.txt
+   pip install -r requirements.txt 
    ```
 
 ## Sử dụng
