@@ -576,6 +576,16 @@ def remove_blacklist_entry(ip):
     update_blacklist(ip, is_active=0)
     return redirect(url_for('manage_blacklist'))
 
+@app.route('/remove_blacklist/<ip>', methods=['POST'])
+def remove_blacklist_entry_(ip):
+    """Xóa IP khỏi blacklist"""
+    try:
+        update_blacklist(ip, is_active=0)
+        print(f"Removing IP {ip} from blacklist...")
+        return jsonify({'success': True, 'ip': ip})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/block_blacklist/<ip>')
 def block_blacklist_entry(ip):
     """Update IP in blacklist"""
@@ -942,6 +952,10 @@ def get_stats():
         'is_capturing': analyzer.is_capturing
     })
 
+@app.route('/about')
+def home():
+    """Trang chủ"""
+    return render_template('about.html')
 if __name__ == '__main__':
     
     # Khởi tạo database

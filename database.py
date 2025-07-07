@@ -1,4 +1,5 @@
 import platform
+import socket
 import sqlite3
 import subprocess
 
@@ -45,7 +46,6 @@ def init_db():
             is_active BOOLEAN DEFAULT 1
         )
     ''')
-    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS alerts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -66,7 +66,7 @@ def init_db():
     conn.commit()
     conn.close()
 
-def apply_firewall_rule(remote_ip, action, port=None, protocol='any'):
+def apply_firewall_rule(remote_ip, action, port=None, protocol='any', domain=None):
     """Chặn hoặc cho phép 1 IP hoặc dải IP với tùy chọn port và protocol"""
     if platform.system() != 'Windows':
         print("Chỉ hỗ trợ Windows")
@@ -74,6 +74,8 @@ def apply_firewall_rule(remote_ip, action, port=None, protocol='any'):
     
     try:
         rule_base = remote_ip.replace('.', '_').replace('/', '_').replace('-', '_to_')
+        if domain:
+            rule_base = domain.replace('.', '_').replace('/', '_').replace('-', '_to_')
         rule_name = f"Rule_{rule_base}_{protocol}_{port or 'any'}"
         
         for rule in ['IN', 'OUT']:
@@ -104,15 +106,21 @@ def apply_firewall_rule(remote_ip, action, port=None, protocol='any'):
         return False
 
 def block_domain_powershell(domain):
-    ps_command = [
-        'powershell', '-Command',
-        f"New-NetFirewallRule -DisplayName 'Block {domain}' -Direction Outbound -RemoteFQDN '{domain}' -Action Block"
-    ]
-    result = subprocess.run(ps_command, capture_output=True, text=True)
-    print(result.stdout.strip())
-    return result.returncode == 0
+    all_ips = set()
+    try:
+        ips = set(info[4][0] for info in socket.getaddrinfo(domain, None))
+        all_ips.update(ips)
+    except Exception as e:
+        print(f"Failed to resolve {domain}: {e}")
+    try:
+        apply_ip_firewall_rule(','.join(all_ips), 'block', domain=domain)
+    except Exception as e:
+        print(f"Failed to apply firewall rule for {domain}: {e}")
+        return False
+    return True
 
 def apply_ip_firewall_rule(ip, action):
+    return None
     apply_firewall_rule(ip, action, port=None, protocol='any')
     
 def add_to_blacklist(ip, reason):

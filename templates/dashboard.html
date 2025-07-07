@@ -1,4 +1,3 @@
-
 {% extends "base.html" %}
 {% block title %}Dashboard - Firewall Monitor{% endblock %}
 
@@ -35,17 +34,17 @@
     <div class="col-md-3">
         <div class="card bg-warning text-white">
             <a href="/suspicious" class="text-decoration-none text-white">
-            <div class="card-body text-center">
-                <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
-                <h5>Suspicious (24h)</h5>
-                <h2>{{ suspicious_requests_24h }}</h2>
-                <small>Potentially malicious</small>
-            </div>
+                <div class="card-body text-center">
+                    <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                    <h5>Suspicious (24h)</h5>
+                    <h2>{{ suspicious_requests_24h }}</h2>
+                    <small>Potentially malicious</small>
+                </div>
             </a>
         </div>
     </div>
     <div class="col-md-3">
-       <a href="/blacklist" class="text-decoration-none text-white">
+        <a href="/blacklist" class="text-decoration-none text-white">
             <div class="card bg-danger text-white">
                 <div class="card-body text-center">
                     <i class="fas fa-ban fa-2x mb-2"></i>
@@ -75,7 +74,7 @@
         <div class="card">
             <div class="card-header bg-gradient">
                 <a href="/suspicious" class="text-decoration-none text-dark">
-                <h5><i class="fas fa-user-secret"></i> Top Suspicious IPs (24h)</h5>
+                    <h5><i class="fas fa-user-secret"></i> Top Suspicious IPs (24h)</h5>
                 </a>
             </div>
             <div class="card-body">
@@ -100,19 +99,21 @@
                                     <span class="badge bg-secondary">{{ count }}</span>
                                 </td>
                                 <td>
-                                    <span class="{% if avg_threat >= 4 %}threat-high{% elif avg_threat >= 2 %}threat-medium{% else %}threat-low{% endif %}">
-                                        <i class="fas fa-{% if avg_threat >= 4 %}fire{% elif avg_threat >= 2 %}exclamation{% else %}check{% endif %}"></i>
+                                    <span
+                                        class="{% if avg_threat >= 4 %}threat-high{% elif avg_threat >= 2 %}threat-medium{% else %}threat-low{% endif %}">
+                                        <i
+                                            class="fas fa-{% if avg_threat >= 4 %}fire{% elif avg_threat >= 2 %}exclamation{% else %}check{% endif %}"></i>
                                         {{ "%.1f"|format(avg_threat) }}
                                     </span>
                                 </td>
                                 <td>
                                     {% if is_activate %}
-                                    <a href="/remove_blacklist/{{ ip }}" class="btn btn-sm btn-outline-success" 
-                                   onclick="return confirm('Are you sure you want to remove {{ ip }} from blacklist?')">
+                                    <a href="#" class="btn btn-sm btn-outline-success unblock-btn" onclick="unBlockIP('{{ ip }}')" >
                                         <i class="fas fa-check"></i> Unblock
                                     </a>
                                     {% else %}
-                                    <a href="#" class="btn btn-sm btn-outline-danger" onclick="blockIP('{{ ip }}', ' Top Suspicious IPs (24h)')">
+                                    <a href="#" class="btn btn-sm btn-outline-danger"
+                                        onclick="blockIP('{{ ip }}', ' Top Suspicious IPs (24h)')">
                                         <i class="fas fa-ban"></i> Block
                                     </a>
                                     {% endif %}
@@ -131,13 +132,13 @@
             </div>
         </div>
     </div>
-    
+
     <div class="col-md-6">
         <div class="card">
             <a href="/alerts" class="text-decoration-none text-dark">
-            <div class="card-header bg-gradient">
-                <h5><i class="fas fa-exclamation-circle"></i> Recent Alerts</h5>
-            </div>
+                <div class="card-header bg-gradient">
+                    <h5><i class="fas fa-exclamation-circle"></i> Recent Alerts</h5>
+                </div>
             </a>
             <div class="card-body">
                 {% if recent_alerts %}
@@ -156,13 +157,15 @@
                             <tr class="{% if severity >= 3 %}alert-animate{% endif %}">
                                 <td><code>{{ ip }}</code></td>
                                 <td>
-                                    <span class="badge {% if alert_type == 'HIGH_THREAT' %}bg-danger{% elif alert_type == 'RATE_LIMIT' %}bg-warning{% else %}bg-info{% endif %}">
+                                    <span
+                                        class="badge {% if alert_type == 'HIGH_THREAT' %}bg-danger{% elif alert_type == 'RATE_LIMIT' %}bg-warning{% else %}bg-info{% endif %}">
                                         {{ alert_type }}
                                     </span>
                                 </td>
                                 <td><small>{{ timestamp }}</small></td>
                                 <td>
-                                    <span class="badge {% if severity >= 3 %}bg-danger{% elif severity >= 2 %}bg-warning{% else %}bg-info{% endif %}">
+                                    <span
+                                        class="badge {% if severity >= 3 %}bg-danger{% elif severity >= 2 %}bg-warning{% else %}bg-info{% endif %}">
                                         {% for i in range(severity) %}<i class="fas fa-star"></i>{% endfor %}
                                     </span>
                                 </td>
@@ -199,4 +202,3 @@
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 {% endblock %}
-    

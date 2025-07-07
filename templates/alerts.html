@@ -155,7 +155,7 @@
                         </td>
                         <td>
                             <span
-                                class="badge {% if alert_type == 'HIGH_THREAT' %}bg-danger{% elif alert_type == 'RATE_LIMIT' %}bg-warning{% elif alert_type == 'BLOCKED' %}bg-dark{% else %}bg-secondary{% endif %}">
+                                class="badge {% if alert_type == 'HIGH_THREAT' %}bg-danger{% elif alert_type == 'RATE_LIMIT' %}bg-warning{% elif alert_type in ['BLOCKED', 'BLACKLISTED'] %}bg-danger{% else %}bg-secondary{% endif %}">
                                 {{ alert_type }}
                             </span>
                         </td>
@@ -170,6 +170,10 @@
                             <span class="badge bg-success">
                                 <i class="fas fa-check"></i> Resolved
                             </span>
+                            {% elif alert_type in ['BLOCKED', 'BLACKLISTED'] %}
+                            <span class="badge bg-info">
+                                <i class="fas"></i> Done
+                            </span>
                             {% else %}
                             <span class="badge bg-danger">
                                 <i class="fas fa-exclamation"></i> Active
@@ -177,7 +181,7 @@
                             {% endif %}
                         </td>
                         <td>
-                            {% if not is_resolved %}
+                            {% if not is_resolved and alert_type not in ['BLOCKED', 'BLACKLISTED'] %}
                             <div class="btn-group btn-group-sm">
                                 <a href="/resolve_alert/{{ id }}" class="btn btn-outline-success" title="Resolve Alert">
                                     <i class="fas fa-check"></i>
@@ -229,7 +233,7 @@
 
 <!-- Alert Details Modal -->
 <div class="modal fade" id="alertDetailsModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">

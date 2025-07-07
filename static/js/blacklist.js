@@ -82,6 +82,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function addToPendingList() {
         const type = document.getElementById('singleIpOption').checked ? 'single' : 'range';
+        console.log(type);
 
 
         clearValidation();
