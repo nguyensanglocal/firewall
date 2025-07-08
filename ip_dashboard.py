@@ -410,51 +410,6 @@ def monitor_requests():
     
     start_cleanup_task()
 
-def monitor_requests_():
-    """Middleware để theo dõi tất cả requests"""
-    @app.before_request
-    def before_request():
-        ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
-        if ip and ',' in ip:
-            ip = ip.split(',')[0].strip()
-        
-        # Bỏ qua whitelist
-        if ip in WHITELIST:
-            return
-            
-        # Kiểm tra blacklist
-        if is_blacklisted(ip):
-            create_alert(ip, 'BLOCKED', f'Blocked request from blacklisted IP: {ip}', severity=3)
-            return jsonify({'error': 'Access denied'}), 403
-        
-        # Phân tích request
-        path = request.path
-        method = request.method
-        user_agent = request.headers.get('User-Agent', '')
-        
-        is_suspicious = analyzer.is_suspicious_request(path, user_agent)
-        is_rate_limited = analyzer.check_rate_limit(ip, limit=500, window=60)
-        
-        threat_level = 0
-        if is_suspicious:
-            threat_level += 2
-        if is_rate_limited:
-            threat_level += 3
-            
-        # Ghi log
-        log_request_to_db(ip, path, method, user_agent, 200, is_suspicious, threat_level)
-        
-        # Tạo cảnh báo nếu cần
-        if threat_level >= 3:
-            message = f"High threat level ({threat_level}) from IP {ip}"
-            create_alert(ip, 'HIGH_THREAT', message, severity=2)
-            
-        if is_rate_limited:
-            message = f"Rate limit exceeded for IP {ip}"
-            create_alert(ip, 'RATE_LIMIT', message, severity=2)
-            # Có thể tự động thêm vào blacklist
-            add_to_blacklist(ip, 'Rate limit exceeded')
-
 monitor_requests()
 from database import *
 @app.route('/')
@@ -496,8 +451,10 @@ def view_suspicious():
 def manage_blacklist():
     """Quản lý blacklist"""
     blacklist_entries = get_blacklist_entries()
+    domain_blacklist_entries = get_domain_blacklist_entries()
     
-    return render_template('blacklist.html', blacklist_entries=blacklist_entries)
+    return render_template('blacklist.html', blacklist_entries=blacklist_entries, 
+                           domain_blacklist_entries=domain_blacklist_entries)
 
 @app.route('/add_blacklist', methods=['POST'])
 def add_blacklist_entry():
@@ -565,7 +522,7 @@ def submit_domain_blacklist():
         reason = entry.get("reason", "Manual addition")
         if domain:
             # add_to_blacklist(domain, reason, entry_type="domain")
-            block_domain_powershell(domain=domain)
+            block_domains(domain=domain)
             create_alert(domain, 'BLACKLISTED', f'Domain {domain} added to blacklist: {reason}', severity=1)
 
     return redirect(url_for('manage_blacklist'))

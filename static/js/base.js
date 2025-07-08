@@ -48,6 +48,9 @@ function createModal(modalId, title, bodyContent, confirmCallback) {
     // Hiển thị modal
     const modalEl = document.getElementById(modalId);
     const modal = new bootstrap.Modal(modalEl);
+    modalEl.addEventListener('hidden.bs.modal', () => {
+            modalEl.remove();
+        });
     return modal;
 }
 
@@ -80,9 +83,7 @@ function blockIP(ip, alert_type) {
 
         // Đóng modal và xóa khỏi DOM sau khi dùng
         modal.hide();
-        modalEl.addEventListener('hidden.bs.modal', () => {
-            modalEl.remove();
-        });
+        
     });
 }
 
@@ -172,8 +173,5 @@ function unBlockIP(ip) {
 
         // Đóng và xóa modal khỏi DOM
         modal.hide();
-        modalEl.addEventListener('hidden.bs.modal', () => {
-            modalEl.remove();
-        });
     });
 }

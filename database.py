@@ -2,6 +2,7 @@ import platform
 import socket
 import sqlite3
 import subprocess
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Cấu hình database
 DATABASE = 'firewall_monitor.db'
@@ -47,6 +48,15 @@ def init_db():
         )
     ''')
     cursor.execute('''
+        CREATE TABLE IF NOT EXISTS domain (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            domain TEXT UNIQUE NOT NULL,
+            reason TEXT,
+            added_date DATETIME DEFAULT (datetime('now', 'localtime')),
+            is_active BOOLEAN DEFAULT 1
+        )
+    ''')
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS alerts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ip_address TEXT NOT NULL,
@@ -71,6 +81,9 @@ def apply_firewall_rule(remote_ip, action, port=None, protocol='any', domain=Non
     if platform.system() != 'Windows':
         print("Chỉ hỗ trợ Windows")
         return False
+    
+    if action == 'block':
+        apply_firewall_rule(remote_ip, 'unblock', port, protocol, domain)
     
     try:
         rule_base = remote_ip.replace('.', '_').replace('/', '_').replace('-', '_to_')
@@ -105,15 +118,67 @@ def apply_firewall_rule(remote_ip, action, port=None, protocol='any', domain=Non
         print(f"[Lỗi áp dụng firewall rule]: {e}")
         return False
 
-def block_domain_powershell(domain):
+def block_domains(domain):
     all_ips = set()
+    """Chặn tất cả IP của domain và subdomains phổ biến"""
+    if not domain:
+        print("Domain không hợp lệ")
+        return False
+    if domain in WHITELIST:
+        print(f"Domain {domain} nằm trong whitelist, không chặn.")
+        return True
+    
+    sub_domains = [f'{i}.{domain}' for i in ['www', 'm', 'static', 'mail', 'ftp', 'api', 'blog', 'admin', 'support', 'shop', 'forum', 'test', 'dev', 'staging', 'app', 'secure', 'static', 'cdn', 'images', 'assets', 'docs', 'news', 'events', 'community', 'portal', 'dashboard', 'account', 'profile', 'settings', 'checkout', 'cart', 'orders', 'payments', 'billing', 'invoices', 'reports', 'analytics', 'search', 'helpdesk', 'tickets', 'knowledgebase', 'wiki', 'resources', 'downloads', 'media', 'videos', 'podcasts', 'gallery', 'showcase', 'portfolio', 'projects', 'features', 'services', 'solutions', 'products', 'offers', 'promotions', 'coupons', 'discounts']]
+
+
+    domains_to_block = [domain] + sub_domains
+    hosts = set()
+
+    def resolve_domain(sub_domain):
+        resolved = {"domain": sub_domain, "ips": set(), "hostnames": set()}
+        try:
+            ips = set(info[4][0] for info in socket.getaddrinfo(sub_domain, None))
+            resolved["ips"] = ips
+            for ip in ips:
+                try:
+                    hostname, _, _ = socket.gethostbyaddr(ip)
+                    resolved["hostnames"].add(hostname)
+                except socket.herror:
+                    pass  # Không có hostname
+            # print(f"[✓] {sub_domain} → {ips}")
+        except Exception as e:
+            # print(f"[x] Lỗi khi resolve {sub_domain}: {e}")
+            pass
+        return resolved
+
+    # Sử dụng ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [executor.submit(resolve_domain, d) for d in domains_to_block]
+        for future in as_completed(futures):
+            result = future.result()
+            all_ips.update(result["ips"])
+            hosts.update(result["hostnames"])
+
+            # print(f"Failed to resolve {sub_domain}: {e}")
+
+    # for host in hosts:
+    #     try:
+    #         ips = set(info[4][0] for info in socket.getaddrinfo(host, None))
+    #         all_ips.update(ips)
+    #         print(f"Resolved host {host} to IPs: {ips}")
+    #     except Exception as e:
+    #         pass
+            # print(f"Failed to resolve host {host}: {e}")
+   
     try:
-        ips = set(info[4][0] for info in socket.getaddrinfo(domain, None))
-        all_ips.update(ips)
-    except Exception as e:
-        print(f"Failed to resolve {domain}: {e}")
-    try:
-        apply_ip_firewall_rule(','.join(all_ips), 'block', domain=domain)
+        print(f"Blocking domain {domain} with IPs: {','.join(all_ips)}")
+        apply_firewall_rule(','.join(all_ips), 'block', domain=domain)
+        """Thêm Domain vào blacklist"""
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
+        cursor.execute('INSERT OR REPLACE INTO domain (domain, reason) VALUES (?, ?)', (domain, 'reason'))
+        conn.commit()
+        conn.close()
     except Exception as e:
         print(f"Failed to apply firewall rule for {domain}: {e}")
         return False
@@ -309,6 +374,14 @@ def get_blacklist_entries():
     blacklist_entries = cursor.fetchall()
     conn.close()
     return blacklist_entries
+
+def get_domain_blacklist_entries():
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute('SELECT domain, reason, added_date, is_active FROM domain ORDER BY added_date DESC')
+    domain_blacklist_entries = cursor.fetchall()
+    conn.close()
+    return domain_blacklist_entries
 
 def update_blacklist(ip, is_active=0):
     """Xóa IP khỏi blacklist"""
