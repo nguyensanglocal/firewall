@@ -73,10 +73,75 @@ function valid_IP(ip) {
     return ipv4Regex.test(ip) || ipv6Regex.test(ip);
 }
 
+// function addToPendingList() {
+//     const type = document.getElementById('singleIpOption').checked ? 'single' : 'range';
+//     console.log(type);
+
+
+//     clearValidation();
+//     let entry = {};
+
+//     if (type === 'single') {
+//         const ip = document.getElementById('ip').value.trim();
+//         if (!valid_IP(ip)) {
+//             markInvalid('ip');
+//             console.log(ip)
+//             showAlert("Invalid IPv4/IPv6 address.");
+//             return;
+//         }
+
+//         if (isDuplicateSingle(ip)) {
+//             markInvalid('ip');
+//             showAlert("This IP already exists or overlaps with a range.");
+//             return;
+//         }
+
+//         entry = { type: 'single', ip };
+//     } else {
+//         const start = document.getElementById('start_ip').value.trim();
+//         const end = document.getElementById('end_ip').value.trim();
+
+//         if (!valid_IP(start)) {
+//             markInvalid('start_ip');
+//             showAlert("Invalid Start IP.");
+//             return;
+//         }
+//         if (!valid_IP(end)) {
+//             markInvalid('end_ip');
+//             showAlert("Invalid End IP.");
+//             return;
+//         }
+
+//         if (ipToNumber(start) > ipToNumber(end)) {
+//             markInvalid('start_ip');
+//             markInvalid('end_ip');
+//             showAlert("Start IP must be less than or equal to End IP.");
+//             return;
+//         }
+
+//         if (isDuplicateRange(start, end)) {
+//             showAlert("This IP range overlaps with an existing IP or range.");
+//             return;
+//         }
+
+//         entry = { type: 'range', start_ip: start, end_ip: end };
+//     }
+
+//     // Lý do
+//     const reason = document.getElementById('reasonSelect').value;
+//     entry.reason = (reason === 'custom')
+//         ? document.getElementById('customReason').value.trim()
+//         : reason;
+
+//     pendingEntries.push(entry);
+//     updatePendingList();
+//     hideAlert();
+//     document.getElementById('blacklistForm').reset();
+//     toggleInputType('single');
+//     clearValidation();
+// }
 function addToPendingList() {
     const type = document.getElementById('singleIpOption').checked ? 'single' : 'range';
-    console.log(type);
-
 
     clearValidation();
     let entry = {};
@@ -85,7 +150,6 @@ function addToPendingList() {
         const ip = document.getElementById('ip').value.trim();
         if (!valid_IP(ip)) {
             markInvalid('ip');
-            console.log(ip)
             showAlert("Invalid IPv4/IPv6 address.");
             return;
         }
@@ -127,7 +191,15 @@ function addToPendingList() {
         entry = { type: 'range', start_ip: start, end_ip: end };
     }
 
-    // Lý do
+    // Validate ports
+    const portValidation = validatePorts();
+    if (!portValidation.valid) {
+        showAlert(portValidation.error);
+        return;
+    }
+    entry.ports = portValidation.ports;
+
+    // Reason
     const reason = document.getElementById('reasonSelect').value;
     entry.reason = (reason === 'custom')
         ? document.getElementById('customReason').value.trim()
@@ -137,6 +209,8 @@ function addToPendingList() {
     updatePendingList();
     hideAlert();
     document.getElementById('blacklistForm').reset();
+    document.getElementById('enablePorts').checked = false;
+    togglePortSelection();
     toggleInputType('single');
     clearValidation();
 }
@@ -172,16 +246,29 @@ function isDuplicateRange(newStart, newEnd) {
     });
 }
 
+function formatPortsDisplay(ports) {
+    if (!ports) return '';
+
+    if (Array.isArray(ports)) {
+        return ` [Ports: ${ports.join(', ')}]`;
+    } else if (ports.start && ports.end) {
+        return ` [Ports: ${ports.start}-${ports.end}]`;
+    }
+    return '';
+}
 function updatePendingList() {
     const list = document.getElementById('pendingList');
     list.innerHTML = "";
     pendingEntries.forEach((entry, i) => {
         const li = document.createElement("li");
         li.className = "list-group-item d-flex justify-content-between align-items-center";
+        const ipDisplay = entry.type === 'single' ? entry.ip : `${entry.start_ip} - ${entry.end_ip}`;
+        const portsDisplay = formatPortsDisplay(entry.ports);
+
         li.innerHTML = `
-        ${entry.type === 'single' ? entry.ip : entry.start_ip + ' - ' + entry.end_ip} (${entry.reason})
-        <button class="btn btn-sm btn-outline-danger" onclick="removeEntry(${i})">&times;</button>
-      `;
+                    <span>${ipDisplay}${portsDisplay} <small class="text-muted">(${entry.reason})</small></span>
+                    <button class="btn btn-sm btn-outline-danger" onclick="removeEntry(${i})">&times;</button>
+                `;
         list.appendChild(li);
     });
 }
@@ -199,6 +286,93 @@ function submitPendingList() {
     document.getElementById('entriesData').value = JSON.stringify(pendingEntries);
     document.getElementById('submitForm').submit();
 }
+
+function togglePortSelection() {
+    const checkbox = document.getElementById('enablePorts');
+    const portSelection = document.getElementById('portSelection');
+    portSelection.style.display = checkbox.checked ? 'block' : 'none';
+}
+
+function togglePortType(type) {
+    const singleInput = document.getElementById('singlePortInput');
+    const multipleInput = document.getElementById('multiplePortsInput');
+    const rangeInput = document.getElementById('portRangeInput');
+
+    singleInput.style.display = 'none';
+    multipleInput.style.display = 'none';
+    rangeInput.style.display = 'none';
+
+    if (type === 'single') {
+        singleInput.style.display = 'block';
+    } else if (type === 'multiple') {
+        multipleInput.style.display = 'block';
+    } else if (type === 'range') {
+        rangeInput.style.display = 'block';
+    }
+}
+
+function validatePorts() {
+    const enablePorts = document.getElementById('enablePorts').checked;
+    if (!enablePorts) return { valid: true, ports: null };
+
+    const singleChecked = document.getElementById('singlePortOption').checked;
+    const multipleChecked = document.getElementById('multiplePortsOption').checked;
+    const rangeChecked = document.getElementById('portRangeOption').checked;
+
+    if (singleChecked) {
+        const port = document.getElementById('singlePort').value.trim();
+        if (!port) {
+            return { valid: false, error: "Single port is required when port option is enabled." };
+        }
+        const portNum = parseInt(port);
+        if (portNum < 1 || portNum > 65535) {
+            return { valid: false, error: "Port must be between 1 and 65535." };
+        }
+        return { valid: true, ports: [portNum] };
+
+    } else if (multipleChecked) {
+        const ports = document.getElementById('multiplePorts').value.trim();
+        if (!ports) {
+            return { valid: false, error: "Multiple ports are required when port option is enabled." };
+        }
+        const portArray = ports.split(',').map(p => p.trim()).filter(p => p);
+        if (portArray.length === 0) {
+            return { valid: false, error: "At least one port is required." };
+        }
+
+        for (let port of portArray) {
+            const portNum = parseInt(port);
+            if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+                return { valid: false, error: `Invalid port: ${port}. Ports must be between 1 and 65535.` };
+            }
+        }
+        return { valid: true, ports: portArray.map(p => parseInt(p)) };
+
+    } else if (rangeChecked) {
+        const startPort = document.getElementById('startPort').value.trim();
+        const endPort = document.getElementById('endPort').value.trim();
+
+        if (!startPort || !endPort) {
+            return { valid: false, error: "Both start and end ports are required for port range." };
+        }
+
+        const startNum = parseInt(startPort);
+        const endNum = parseInt(endPort);
+
+        if (startNum < 1 || startNum > 65535 || endNum < 1 || endNum > 65535) {
+            return { valid: false, error: "Ports must be between 1 and 65535." };
+        }
+
+        if (startNum > endNum) {
+            return { valid: false, error: "Start port must be less than or equal to end port." };
+        }
+
+        return { valid: true, ports: { start: startNum, end: endNum } };
+    }
+
+    return { valid: true, ports: null };
+}
+
 
 let domainEntries = [];
 

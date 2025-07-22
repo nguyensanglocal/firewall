@@ -70,30 +70,30 @@
             <table class="table table-hover mb-0" id="logsTable">
                 <thead>
                     <tr>
-                        <th class="sortable" data-column="ip">
-                            <i class="fas fa-network-wired"></i> IP Address 
-                            <i class="fas fa-sort sort-icon"></i>
-                        </th>
                         <th class="sortable" data-column="timestamp">
                             <i class="fas fa-clock"></i> Timestamp 
                             <i class="fas fa-sort sort-icon"></i>
                         </th>
+                        <th class="sortable" data-column="ip">
+                            <i class="fas fa-network-wired"></i> IP Source 
+                            <i class="fas fa-sort sort-icon"></i>
+                        </th>
                         <th class="sortable" data-column="path">
-                            <i class="fas fa-route"></i> Path 
+                            <i class="fas fa-route"></i> IP Dest 
                             <i class="fas fa-sort sort-icon"></i>
                         </th>
                         <th class="sortable" data-column="method">
-                            <i class="fas fa-method"></i> Method 
+                            <i class="fas fa-method"></i> Port 
                             <i class="fas fa-sort sort-icon"></i>
                         </th>
                         <th class="sortable" data-column="user_agent">
                             <i class="fas fa-user-agent"></i> User Agent 
                             <i class="fas fa-sort sort-icon"></i>
                         </th>
-                        <th class="sortable" data-column="status">
+                        <!-- <th class="sortable" data-column="status">
                             <i class="fas fa-code"></i> Status 
                             <i class="fas fa-sort sort-icon"></i>
-                        </th>
+                        </th> -->
                         <th class="sortable" data-column="suspicious">
                             <i class="fas fa-shield-alt"></i> Suspicious 
                             <i class="fas fa-sort sort-icon"></i>
@@ -116,12 +116,12 @@
                         data-user-agent="{{ user_agent }}"
                         data-status="{{ status_code }}">
                         <td>
+                            <small>{{ timestamp }}</small>
+                        </td>
+                        <td>
                             <code class="{% if threat_level >= 4 %}text-danger{% elif threat_level >= 2 %}text-warning{% endif %}">
                                 {{ ip }}
                             </code>
-                        </td>
-                        <td>
-                            <small>{{ timestamp }}</small>
                         </td>
                         <td>
                             <code>{{ path }}</code>
@@ -136,11 +136,11 @@
                                 {{ user_agent[:50] }}{% if user_agent|length > 50 %}...{% endif %}
                             </small>
                         </td>
-                        <td>
+                        <!-- <td>
                             <span class="badge {% if status_code < 300 %}bg-success{% elif status_code < 400 %}bg-info{% elif status_code < 500 %}bg-warning{% else %}bg-danger{% endif %}">
                                 {{ status_code }}
                             </span>
-                        </td>
+                        </td> -->
                         <td class="text-center">
                             {% if is_suspicious %}
                                 <i class="fas fa-exclamation-triangle text-warning" title="Suspicious request"></i>

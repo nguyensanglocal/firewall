@@ -1,0 +1,44 @@
+@startuml
+actor "Quản trị viên" as Admin
+
+rectangle "Firewall Monitor" {
+  usecase "Quản lý luật" as UC1
+  usecase "Giám sát mạng" as UC2
+  usecase "Phân tích gói tin" as UC3
+
+usecase "Chặn theo process" as Rule_PROCESS
+usecase "Chặn theo IP/dải IP" as Rule_IP
+usecase "Chặn protocol" as Rule_Proto
+usecase "Chặn port" as Rule_Port
+usecase "Chặn theo domain" as Rule_Domain
+
+  
+
+  UC1 --> Rule_PROCESS
+  UC1 --> Rule_IP
+  UC1 --> Rule_Domain
+  Rule_IP --> Rule_Proto
+  Rule_IP --> Rule_Port
+
+  UC2 --> (Xem log gói tin)
+  UC2 --> (Xem log truy cập)
+  UC2 --> (Thống kê real-time)
+
+
+usecase "DDoS detection" as rule_ddos
+
+/'rule_ddos --> (Packet rate)'/
+/'rule_ddos --> (Connection attempts)'/
+
+  UC3 --> rule_ddos
+  UC3 --> (Port scanning detection)
+  UC3 --> (Malformed packet detection)
+  UC3 --> (DNS tunneling detection)
+
+}
+
+Admin --> UC1
+Admin --> UC2
+Admin --> UC3
+
+@enduml

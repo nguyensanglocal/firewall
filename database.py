@@ -4,6 +4,8 @@ import sqlite3
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import requests
+
 # Cấu hình database
 DATABASE = 'firewall_monitor.db'
 
@@ -268,14 +270,20 @@ def get_suspicious_requests_24h():
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
     
-    # Thống kê các request đáng ngờ
+    # Đếm số ip không lặp đáng ngờ trong 24h
     cursor.execute('''
-        SELECT COUNT(*) FROM access_logs 
-        WHERE is_suspicious = 1 AND timestamp > datetime("now", "-24 hours")
+        SELECT COUNT(DISTINCT ip_address) 
+        FROM access_logs 
+        WHERE timestamp > datetime("now", "-24 hours") AND is_suspicious = 1
     ''')
-    suspicious_requests_24h = cursor.fetchone()[0]
+    
 
-    return suspicious_requests_24h
+    suspicious_ip_requests_24h = cursor.fetchone()[0]
+    
+    conn.close()
+
+
+    return suspicious_ip_requests_24h
 
 def get_total_blacklisted():
     """Lấy tổng số IP trong blacklist"""
@@ -415,3 +423,41 @@ def update_alert_resolved(alert_id):
     cursor.execute('UPDATE alerts SET is_resolved = 1 WHERE id = ?', (alert_id,))
     conn.commit()
     conn.close()
+
+import sqlite3
+
+def init_db_geoip():
+    conn = sqlite3.connect('geoip_cache.db')
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS ip_cache (
+            ip TEXT PRIMARY KEY,
+            country TEXT,
+            region TEXT,
+            city TEXT,
+            org TEXT,
+            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+# Gọi init
+init_db_geoip()
+def lookup_ip(ip):
+    with sqlite3.connect('geoip_cache.db', timeout=5) as conn:
+        c = conn.cursor()
+        c.execute("SELECT country, region, city, org FROM ip_cache WHERE ip = ?", (ip,))
+        row = c.fetchone()
+        if row:
+            return {"source": "cache", "country": row[0], "region": row[1], "city": row[2], "org": row[3]}
+
+        url = f"http://ip-api.com/json/{ip}?fields=status,country,regionName,city,org"
+        resp = requests.get(url).json()
+
+        if resp['status'] == 'success':
+            data = (ip, resp['country'], resp['regionName'], resp['city'], resp['org'])
+            c.execute("INSERT OR IGNORE INTO ip_cache (ip, country, region, city, org) VALUES (?, ?, ?, ?, ?)", data)
+            return {"source": "api", "country": resp['country'], "region": resp['regionName'], "city": resp['city'], "org": resp['org']}
+        else:
+            return {"source": "api", "error": "lookup failed"}

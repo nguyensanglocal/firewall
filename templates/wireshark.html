@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Network Packet Analyzer</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
+
+
+    <!-- JSON Viewer CSS -->
+     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/json-viewer-js@1.0.8/src/style.min.css">
+   
+
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -91,15 +97,6 @@
             border-radius: 4px;
             display: none;
         }
-        .detail-section {
-            margin-bottom: 15px;
-        }
-        .detail-title {
-            font-weight: bold;
-            color: #007bff;
-            margin-bottom: 5px;
-            font-size: 14px;
-        }
         .detail-content {
             background-color: white;
             padding: 10px;
@@ -116,16 +113,6 @@
         }
         .status-capturing { background-color: #28a745; }
         .status-stopped { background-color: #dc3545; }
-        .hex-dump {
-            font-family: monospace;
-            font-size: 11px;
-            line-height: 1.4;
-            background-color: #f8f9fa;
-            padding: 10px;
-            border-radius: 4px;
-            max-height: 200px;
-            overflow-y: auto;
-        }
     </style>
 </head>
 <body>
@@ -182,19 +169,20 @@
         
         <div class="packet-detail" id="packetDetail">
             <h3>Chi tiết gói tin</h3>
-            <div id="detailContent"></div>
+            <div id="detailContent" class="detail-content"></div>
         </div>
     </div>
+     <script src="https://cdn.jsdelivr.net/npm/json-viewer-js@1.0.8/lib/json-viewer.min.js"></script>
+
 
     <script>
         const socket = io();
         let packets = [];
         let stats = { total_packets: 0, protocol_stats: {}, is_capturing: false };
 
-        // Kết nối WebSocket
         socket.on('connect', function() {
             console.log('Connected to server');
-            updateStats();
+            // updateStats();
         });
 
         socket.on('new_packet', function(packet) {
@@ -203,7 +191,7 @@
                 packets.shift();
             }
             addPacketToTable(packet);
-            updateStats();
+            // updateStats();
         });
 
         socket.on('error', function(data) {
@@ -237,7 +225,7 @@
                     packets = [];
                     document.getElementById('packetTableBody').innerHTML = '';
                     document.getElementById('packetDetail').style.display = 'none';
-                    updateStats();
+                    // updateStats();
                 });
         }
 
@@ -245,18 +233,11 @@
             const tbody = document.getElementById('packetTableBody');
             const row = tbody.insertRow(0);
             
-            const srcInfo = packet.ip ? packet.ip.src_ip : 'N/A';
-            const destInfo = packet.ip ? packet.ip.dest_ip : 'N/A';
-            const protocol = packet.protocol || 'Unknown';
+            const srcInfo = packet.ip ? packet.ip.src : 'N/A';
+            const destInfo = packet.ip ? packet.ip.dst : 'N/A';
+            const protocol = packet.protocols ? packet.protocols.slice(-1)[0] : 'Unknown';
             
-            let info = '';
-            if (packet.tcp) {
-                info = `${packet.tcp.src_port} → ${packet.tcp.dest_port} [${packet.tcp.flag_names.join(',')}]`;
-            } else if (packet.udp) {
-                info = `${packet.udp.src_port} → ${packet.udp.dest_port}`;
-            } else if (packet.icmp) {
-                info = packet.icmp.type_name;
-            }
+            const info = `${packet.protocols?.join(', ') || ''}`;
             
             row.innerHTML = `
                 <td>${packet.id}</td>
@@ -274,114 +255,20 @@
         function showPacketDetail(packet) {
             const detail = document.getElementById('packetDetail');
             const content = document.getElementById('detailContent');
-            
-            let html = '';
-            
-            if (packet.ethernet) {
-                html += `
-                    <div class="detail-section">
-                        <div class="detail-title">Ethernet Header</div>
-                        <div class="detail-content">
-                            Source MAC: ${packet.ethernet.src_mac}<br>
-                            Destination MAC: ${packet.ethernet.dest_mac}<br>
-                            Type: ${packet.ethernet.type_name} (${packet.ethernet.type})
-                        </div>
-                    </div>
-                `;
-            }
-            
-            if (packet.ip) {
-                html += `
-                    <div class="detail-section">
-                        <div class="detail-title">IP Header</div>
-                        <div class="detail-content">
-                            Version: ${packet.ip.version}<br>
-                            Header Length: ${packet.ip.header_length} bytes<br>
-                            Type of Service: ${packet.ip.tos}<br>
-                            Total Length: ${packet.ip.total_length}<br>
-                            Identification: ${packet.ip.identification}<br>
-                            Flags: ${packet.ip.flags}<br>
-                            Fragment Offset: ${packet.ip.fragment_offset}<br>
-                            TTL: ${packet.ip.ttl}<br>
-                            Protocol: ${packet.ip.protocol_name} (${packet.ip.protocol})<br>
-                            Checksum: ${packet.ip.checksum}<br>
-                            Source IP: ${packet.ip.src_ip}<br>
-                            Destination IP: ${packet.ip.dest_ip}
-                        </div>
-                    </div>
-                `;
-            }
-            
-            if (packet.tcp) {
-                html += `
-                    <div class="detail-section">
-                        <div class="detail-title">TCP Header</div>
-                        <div class="detail-content">
-                            Source Port: ${packet.tcp.src_port}<br>
-                            Destination Port: ${packet.tcp.dest_port}<br>
-                            Sequence Number: ${packet.tcp.seq_num}<br>
-                            Acknowledgment Number: ${packet.tcp.ack_num}<br>
-                            Data Offset: ${packet.tcp.data_offset} bytes<br>
-                            Flags: ${packet.tcp.flag_names.join(', ')} (${packet.tcp.flags})<br>
-                            Window Size: ${packet.tcp.window_size}<br>
-                            Checksum: ${packet.tcp.checksum}<br>
-                            Urgent Pointer: ${packet.tcp.urgent_ptr}
-                        </div>
-                    </div>
-                `;
-            } else if (packet.udp) {
-                html += `
-                    <div class="detail-section">
-                        <div class="detail-title">UDP Header</div>
-                        <div class="detail-content">
-                            Source Port: ${packet.udp.src_port}<br>
-                            Destination Port: ${packet.udp.dest_port}<br>
-                            Length: ${packet.udp.length}<br>
-                            Checksum: ${packet.udp.checksum}
-                        </div>
-                    </div>
-                `;
-            } else if (packet.icmp) {
-                html += `
-                    <div class="detail-section">
-                        <div class="detail-title">ICMP Header</div>
-                        <div class="detail-content">
-                            Type: ${packet.icmp.type_name} (${packet.icmp.type})<br>
-                            Code: ${packet.icmp.code}<br>
-                            Checksum: ${packet.icmp.checksum}
-                        </div>
-                    </div>
-                `;
-            }
-            
-            // Hex dump
-            html += `
-                <div class="detail-section">
-                    <div class="detail-title">Raw Data (Hex)</div>
-                    <div class="hex-dump">${formatHexDump(packet.raw_data)}</div>
-                </div>
-            `;
-            
-            content.innerHTML = html;
+
+            content.innerHTML = '';
+            const viewer = new JSONViewer();
+            content.appendChild(viewer.getContainer());
+            viewer.showJSON(packet, null, 1);  // Expand 1 cấp
+
             detail.style.display = 'block';
         }
 
-        function formatHexDump(hexString) {
-            let result = '';
-            for (let i = 0; i < hexString.length; i += 32) {
-                const line = hexString.substr(i, 32);
-                const offset = (i / 2).toString(16).padStart(4, '0');
-                const hex = line.match(/.{1,2}/g).join(' ');
-                result += `${offset}: ${hex}
-`;
-            }
-            return result;
-        }
-
         function updateStats() {
-            fetch('/api/stats_wireshark')
+            fetch('/api/stats')
                 .then(response => response.json())
                 .then(data => {
+                    console.log('Updated stats:', data);
                     stats = data;
                     document.getElementById('totalPackets').textContent = stats.total_packets;
                     document.getElementById('tcpPackets').textContent = stats.protocol_stats.TCP || 0;
@@ -404,10 +291,8 @@
             }
         }
 
-        // Cập nhật stats định kỳ
-        setInterval(updateStats, 2000);
-        
-        // Load packets ban đầu
+        // setInterval(updateStats, 2000);
+
         fetch('/api/packets')
             .then(response => response.json())
             .then(data => {
@@ -415,7 +300,7 @@
                 const tbody = document.getElementById('packetTableBody');
                 tbody.innerHTML = '';
                 packets.forEach(packet => addPacketToTable(packet));
-                updateStats();
+                // updateStats();
             });
     </script>
 </body>

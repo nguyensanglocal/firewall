@@ -3,35 +3,20 @@ import json
 import subprocess
 import platform
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify, redirect, url_for
-from flask_socketio import SocketIO, emit
 import psutil
 import threading
 import time
-from flask import Blueprint
 
-class FirewallManager:
-    def __init__(self, socketio: SocketIO, app: Flask, prefix_url='/firewall'):
-        self.rules_file = 'firewall_rules.json'
+class ProcessManager:
+    def __init__(self, rules_file='firewall_rules.json'):
+        self.rules_file = rules_file
         self.blocked_apps = set()
         self.allowed_apps = set()
         self.monitoring = False
         self.connections = []
-        self.socketio = socketio
-        if not self.socketio:
-            self.socketio = SocketIO(app, cors_allowed_origins="*")
-        self.app = app
-        self.prefix = prefix_url
 
         self.load_rules()
-        self.define_routes()
-        self.register_socketio_handlers()
         self.create_index_html()  
-
-    def define_routes(self):
-        self.firewall_group = Blueprint('firewall_group', __name__)
-        self.register_routes()
-        self.app.register_blueprint(self.firewall_group, url_prefix=self.prefix)
 
     def load_rules(self):
         """Load firewall rules from JSON file"""
@@ -189,120 +174,6 @@ class FirewallManager:
             except Exception as e:
                 print(f"Monitoring error: {e}")
                 time.sleep(5)
-
-    def register_routes(self):
-        @self.firewall_group.route('/')
-        def index():
-            return render_template('manager_process.html')
-        
-        @self.firewall_group.route('/processes')
-        def list_processes():
-            processes = self.get_running_processes()
-            if not processes:
-                return jsonify({'error': 'No processes with network activity found'}), 404
-            print(f"Found {len(processes)} processes with network activity")
-            return jsonify(processes)
-
-        @self.firewall_group.route('/connections')
-        def list_connections():
-            connections = self.get_network_connections()
-            return jsonify(connections)
-
-        @self.firewall_group.route('/block', methods=['POST'])
-        def block_application():
-            data = request.get_json()
-            print(f"Received block request: {data}")
-            app_path = data.get('app_path')
-            if not app_path:
-                return jsonify({'error': 'Missing app_path'}), 400
-            self.block_app(app_path)
-            return jsonify({'success': True, 'message': f'Blocked {os.path.basename(app_path)}'})
-
-        @self.firewall_group.route('/allow', methods=['POST'])
-        def allow_application():
-            data = request.get_json()
-            app_path = data.get('app_path')
-            if not app_path:
-                return jsonify({'error': 'Missing app_path'}), 400
-            self.allow_app(app_path)
-            return jsonify({'success': True, 'message': f'Allowed {os.path.basename(app_path)}'})
-
-        @self.firewall_group.route('/rules')
-        def get_rules():
-            return jsonify({
-                'blocked_apps': list(self.blocked_apps),
-                'allowed_apps': list(self.allowed_apps)
-            })
-        
-        @self.firewall_group.route('/monitoring/start', methods=['POST'])
-        def start_monitoring():
-            """Start network monitoring"""
-            self.start_monitoring()
-            return jsonify({'success': True, 'message': 'Monitoring started'})
-        
-        @self.firewall_group.route('/monitoring/stop', methods=['POST'])
-        def stop_monitoring():
-            """Stop network monitoring"""
-            self.stop_monitoring()
-            return jsonify({'success': True, 'message': 'Monitoring stopped'})
-        
-    def register_socketio_handlers(self):
-        @self.socketio.on('start_monitoring')
-        def handle_start_monitoring():
-            self.start_monitoring()
-            emit('monitoring_status', {'monitoring': True})
-
-        @self.socketio.on('stop_monitoring')
-        def handle_stop_monitoring():
-            self.stop_monitoring()
-            emit('monitoring_status', {'monitoring': False})
-
-        @self.socketio.on('get_connections')
-        def handle_get_connections():
-            emit('connection_update', {
-                'connections': self.get_network_connections(),
-                'timestamp': datetime.now().isoformat()
-            })
-
-        @self.socketio.on('get_processes')
-        def handle_get_processes():
-            emit('processes_update', {
-                'processes': self.get_running_processes(),
-                'timestamp': datetime.now().isoformat()
-            })
-
-        @self.socketio.on('block_app')
-        def handle_block_app(data):
-            app_path = data.get('app_path')
-            if not app_path:
-                emit('error', {'message': 'Missing app_path'})
-                return
-            self.block_app(app_path)
-            emit('app_blocked', {'app_path': app_path})
-        @self.socketio.on('allow_app')
-        def handle_allow_app(data):
-            app_path = data.get('app_path')
-            if not app_path:
-                emit('error', {'message': 'Missing app_path'})
-                return
-            self.allow_app(app_path)
-            emit('app_allowed', {'app_path': app_path})
-
-        @self.socketio.on('get_rules')
-        def handle_get_rules():
-            emit('rules_update', {
-                'blocked_apps': list(self.blocked_apps),
-                'allowed_apps': list(self.allowed_apps)
-            })
-        @self.socketio.on('connect')
-        def handle_connect():
-            print("Client connected")
-            emit('connected', {'message': 'Connected to FirewallManager'})
-        @self.socketio.on('disconnect')
-        def handle_disconnect():
-            print("Client disconnected")
-            self.stop_monitoring()
-            emit('disconnected', {'message': 'Disconnected from FirewallManager'})
 
     def create_index_html(self):
     # Create templates directory and HTML file
@@ -1011,4 +882,10 @@ class FirewallManager:
             f.write(html_template)
 
 
+_process_manager = None
+def get_process_manager():
+    global _process_manager
+    if _process_manager is None:
+        _process_manager = ProcessManager()
+    return _process_manager
         
