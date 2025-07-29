@@ -260,9 +260,12 @@
         {% endif %}
     </div>
 </div>
+
+
+
 <!-- Add Blacklist Modal -->
 <div class="modal fade" id="addBlacklistModal" tabindex="-1">
-    <div class="modal-dialog modal-xl">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title"><i class="fas fa-ban"></i> Add to Blacklist</h5>
@@ -271,15 +274,11 @@
 
             <div class="modal-body">
                 <!-- Toggle buttons -->
-                <div class="mb-3 text-center">
+                <div class="mb-3 text-center" style="display: none;">
                     <div class="btn-group" role="group">
                         <input type="radio" class="btn-check" name="inputType" id="singleIpOption" autocomplete="off"
                             checked onclick="toggleInputType('single')">
-                        <label class="btn btn-outline-primary" for="singleIpOption">Single IP</label>
-
-                        <input type="radio" class="btn-check" name="inputType" id="rangeIpOption" autocomplete="off"
-                            onclick="toggleInputType('range')">
-                        <label class="btn btn-outline-primary" for="rangeIpOption">IP Range</label>
+                        <label class="btn btn-outline-primary" for="singleIpOption">Single IP/IP Range</label>
                     </div>
                 </div>
 
@@ -289,7 +288,7 @@
                     <div id="singleIpInput" class="mb-3">
                         <label for="ip">IP Address *</label>
                         <input type="text" class="form-control" id="ip" name="ip" required
-                            placeholder="e.g., 192.168.1.100 or 2001:db8::1"
+                            placeholder="Single IP/IP Range: e.g., 192.168.1.100 or 2001:db8::1 or ip1-ip2"
                             pattern="^(?:(?:[0-9]{1,3}\.){3}[0-9]{1,3}|(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:)*::(?:[0-9a-fA-F]{1,4}:)*[0-9a-fA-F]{1,4})$">
                     </div>
 
@@ -309,244 +308,140 @@
                         </div>
                     </div>
 
-                    <!-- Protocol and Port Selection -->
+                    <!-- Port Selection -->
                     <div class="mb-3">
-                        <div class="d-flex align-items-center mb-2">
-                            <input type="checkbox" class="form-check-input me-2" id="enableProtocols"
-                                onchange="toggleProtocolSelection()" checked>
-                            <label for="enableProtocols" class="form-check-label">Include protocols and ports</label>
-                        </div>
-
-                        <div id="protocolSelection">
-                            <!-- Protocol Selection -->
-                            <div class="mb-3">
-                                <label class="form-label">Protocol *</label>
-                                <div class="btn-group w-100" role="group">
-                                    <input type="radio" class="btn-check" name="protocolType" id="allProtocolsOption"
-                                        checked onchange="toggleProtocolType('all')">
-                                    <label class="btn btn-outline-info" for="allProtocolsOption">All Protocols</label>
-
-                                    <input type="radio" class="btn-check" name="protocolType" id="tcpProtocolOption"
-                                        onchange="toggleProtocolType('tcp')">
-                                    <label class="btn btn-outline-success" for="tcpProtocolOption">TCP</label>
-
-                                    <input type="radio" class="btn-check" name="protocolType" id="udpProtocolOption"
-                                        onchange="toggleProtocolType('udp')">
-                                    <label class="btn btn-outline-warning" for="udpProtocolOption">UDP</label>
-
-                                    <input type="radio" class="btn-check" name="protocolType" id="icmpProtocolOption"
-                                        onchange="toggleProtocolType('icmp')">
-                                    <label class="btn btn-outline-danger" for="icmpProtocolOption">ICMP</label>
-                                </div>
-                            </div>
-
-                            <!-- Port Configuration for TCP/UDP -->
-                            <div id="portConfiguration" style="display: none;">
-                                <div class="row">
-                                    <!-- Local Ports -->
-                                    <div class="col-md-6">
-                                        <div class="card">
-                                            <div class="card-header bg-primary text-white">
-                                                <h6 class="mb-0">Local Ports</h6>
-                                            </div>
-                                            <div class="card-body">
-                                                <div class="mb-2">
-                                                    <input type="radio" class="btn-check" name="localPortType"
-                                                        id="allLocalPortsOption" checked
-                                                        onchange="toggleLocalPortType('all')">
-                                                    <label class="btn btn-sm btn-outline-secondary"
-                                                        for="allLocalPortsOption">All Ports</label>
-
-                                                    <input type="radio" class="btn-check" name="localPortType"
-                                                        id="specificLocalPortsOption"
-                                                        onchange="toggleLocalPortType('specific')">
-                                                    <label class="btn btn-sm btn-outline-secondary"
-                                                        for="specificLocalPortsOption">Specific Ports</label>
-                                                </div>
-
-                                                <div id="localPortInputs" style="display: none;">
-                                                    <div class="mb-2">
-                                                        <div class="btn-group btn-group-sm w-100" role="group">
-                                                            <input type="radio" class="btn-check" name="localPortMode"
-                                                                id="singleLocalPortOption" checked
-                                                                onchange="toggleLocalPortMode('single')">
-                                                            <label class="btn btn-outline-secondary"
-                                                                for="singleLocalPortOption">Single</label>
-
-                                                            <input type="radio" class="btn-check" name="localPortMode"
-                                                                id="multipleLocalPortsOption"
-                                                                onchange="toggleLocalPortMode('multiple')">
-                                                            <label class="btn btn-outline-secondary"
-                                                                for="multipleLocalPortsOption">Multiple</label>
-
-                                                            <input type="radio" class="btn-check" name="localPortMode"
-                                                                id="rangeLocalPortsOption"
-                                                                onchange="toggleLocalPortMode('range')">
-                                                            <label class="btn btn-outline-secondary"
-                                                                for="rangeLocalPortsOption">Range</label>
-                                                        </div>
-                                                    </div>
-
-                                                    <div id="singleLocalPortInput">
-                                                        <input type="number" class="form-control form-control-sm"
-                                                            id="singleLocalPort" min="1" max="65535"
-                                                            placeholder="e.g., 80">
-                                                    </div>
-
-                                                    <div id="multipleLocalPortsInput" style="display: none;">
-                                                        <input type="text" class="form-control form-control-sm"
-                                                            id="multipleLocalPorts" placeholder="e.g., 80,443,8080">
-                                                        <small class="form-text text-muted">Separate with commas</small>
-                                                    </div>
-
-                                                    <div id="rangeLocalPortsInput" style="display: none;">
-                                                        <div class="row">
-                                                            <div class="col-6">
-                                                                <input type="number"
-                                                                    class="form-control form-control-sm"
-                                                                    id="startLocalPort" min="1" max="65535"
-                                                                    placeholder="Start">
-                                                            </div>
-                                                            <div class="col-6">
-                                                                <input type="number"
-                                                                    class="form-control form-control-sm"
-                                                                    id="endLocalPort" min="1" max="65535"
-                                                                    placeholder="End">
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Remote Ports -->
-                                    <div class="col-md-6">
-                                        <div class="card">
-                                            <div class="card-header bg-success text-white">
-                                                <h6 class="mb-0">Remote Ports</h6>
-                                            </div>
-                                            <div class="card-body">
-                                                <div class="mb-2">
-                                                    <input type="radio" class="btn-check" name="remotePortType"
-                                                        id="allRemotePortsOption" checked
-                                                        onchange="toggleRemotePortType('all')">
-                                                    <label class="btn btn-sm btn-outline-secondary"
-                                                        for="allRemotePortsOption">All Ports</label>
-
-                                                    <input type="radio" class="btn-check" name="remotePortType"
-                                                        id="specificRemotePortsOption"
-                                                        onchange="toggleRemotePortType('specific')">
-                                                    <label class="btn btn-sm btn-outline-secondary"
-                                                        for="specificRemotePortsOption">Specific Ports</label>
-                                                </div>
-
-                                                <div id="remotePortInputs" style="display: none;">
-                                                    <div class="mb-2">
-                                                        <div class="btn-group btn-group-sm w-100" role="group">
-                                                            <input type="radio" class="btn-check" name="remotePortMode"
-                                                                id="singleRemotePortOption" checked
-                                                                onchange="toggleRemotePortMode('single')">
-                                                            <label class="btn btn-outline-secondary"
-                                                                for="singleRemotePortOption">Single</label>
-
-                                                            <input type="radio" class="btn-check" name="remotePortMode"
-                                                                id="multipleRemotePortsOption"
-                                                                onchange="toggleRemotePortMode('multiple')">
-                                                            <label class="btn btn-outline-secondary"
-                                                                for="multipleRemotePortsOption">Multiple</label>
-
-                                                            <input type="radio" class="btn-check" name="remotePortMode"
-                                                                id="rangeRemotePortsOption"
-                                                                onchange="toggleRemotePortMode('range')">
-                                                            <label class="btn btn-outline-secondary"
-                                                                for="rangeRemotePortsOption">Range</label>
-                                                        </div>
-                                                    </div>
-
-                                                    <div id="singleRemotePortInput">
-                                                        <input type="number" class="form-control form-control-sm"
-                                                            id="singleRemotePort" min="1" max="65535"
-                                                            placeholder="e.g., 443">
-                                                    </div>
-
-                                                    <div id="multipleRemotePortsInput" style="display: none;">
-                                                        <input type="text" class="form-control form-control-sm"
-                                                            id="multipleRemotePorts" placeholder="e.g., 443,993,995">
-                                                        <small class="form-text text-muted">Separate with commas</small>
-                                                    </div>
-
-                                                    <div id="rangeRemotePortsInput" style="display: none;">
-                                                        <div class="row">
-                                                            <div class="col-6">
-                                                                <input type="number"
-                                                                    class="form-control form-control-sm"
-                                                                    id="startRemotePort" min="1" max="65535"
-                                                                    placeholder="Start">
-                                                            </div>
-                                                            <div class="col-6">
-                                                                <input type="number"
-                                                                    class="form-control form-control-sm"
-                                                                    id="endRemotePort" min="1" max="65535"
-                                                                    placeholder="End">
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Legacy Port Selection (kept for backward compatibility) -->
-                    <div class="mb-3" id="legacyPortSection" style="display: none;">
                         <div class="d-flex align-items-center mb-2">
                             <input type="checkbox" class="form-check-input me-2" id="enablePorts"
                                 onchange="togglePortSelection()">
-                            <label for="enablePorts" class="form-check-label">Include specific ports (Legacy)</label>
+                            <label for="enablePorts" class="form-check-label">Include specific ports</label>
                         </div>
 
                         <div id="portSelection" style="display: none;">
-                            <div class="mb-2">
-                                <div class="btn-group btn-group-sm" role="group">
-                                    <input type="radio" class="btn-check" name="portType" id="singlePortOption" checked
-                                        onchange="togglePortType('single')">
-                                    <label class="btn btn-outline-secondary" for="singlePortOption">Single Port</label>
-
-                                    <input type="radio" class="btn-check" name="portType" id="multiplePortsOption"
-                                        onchange="togglePortType('multiple')">
-                                    <label class="btn btn-outline-secondary" for="multiplePortsOption">Multiple
-                                        Ports</label>
-
-                                    <input type="radio" class="btn-check" name="portType" id="portRangeOption"
-                                        onchange="togglePortType('range')">
-                                    <label class="btn btn-outline-secondary" for="portRangeOption">Port Range</label>
-                                </div>
-                            </div>
-
-                            <div id="singlePortInput">
-                                <input type="number" class="form-control" id="singlePort" min="1" max="65535"
-                                    placeholder="e.g., 80">
-                            </div>
-
-                            <div id="multiplePortsInput" style="display: none;">
-                                <input type="text" class="form-control" id="multiplePorts"
-                                    placeholder="e.g., 80,443,8080,3306">
-                                <small class="form-text text-muted">Separate ports with commas</small>
-                            </div>
-
-                            <div id="portRangeInput" style="display: none;">
-                                <div class="row">
-                                    <div class="col-6">
-                                        <input type="number" class="form-control" id="startPort" min="1" max="65535"
-                                            placeholder="Start port">
+                            <!-- Multiple Ports -->
+                            <input type="text" class="form-control" id="multiplePorts"
+                                placeholder="e.g., 80,443,5000-5050">
+                            <small class="form-text text-muted">Separate ports with commas</small>
+                            <div id="multiplePortsInput" style="display: none;" class="col-12">
+                                <div class="d-flex flex-wrap justify-content-between">
+                                    <!-- Local ports -->
+                                    <div id="local_ports" class="col-5 mb-3">
+                                        <label for="multiplePortsLocal" class="form-label"><strong>Local
+                                                Ports:</strong></label>
+                                        <input type="text" class="form-control" id="multiplePortsLocal"
+                                            placeholder="e.g., 8080,8443,6000-6050">
                                     </div>
-                                    <div class="col-6">
-                                        <input type="number" class="form-control" id="endPort" min="1" max="65535"
-                                            placeholder="End port">
+                                    <!-- Remote ports -->
+                                    <div id="remote_ports" class="col-5 mb-3">
+                                        <label for="multiplePorts" class="form-label"> <strong>Remote
+                                                Ports:</strong></label>
+                                        <input type="text" class="form-control" id="multiplePorts"
+                                            placeholder="e.g., 80,443,5000-5050">
+                                    </div>
+                                </div>
+
+                            </div>
+
+
+
+                        </div>
+                    </div>
+
+                    <!-- Protocol Selection -->
+                    <div class="mb-3">
+                        <div class="d-flex align-items-center mb-2">
+                            <input type="checkbox" class="form-check-input me-2" id="enableProtocol"
+                                onchange="toggleProtocolSelection()">
+                            <label for="enableProtocol" class="form-check-label">Include specific protocols</label>
+                        </div>
+
+                        <div id="protocolSelection" style="display: none;">
+
+
+                            <!-- Multiple Protocols -->
+                            <div id="multipleProtocolsInput">
+                                <div class="row">
+                                    <div class="col-12">
+                                        <div class="border p-2 rounded" style="max-height: 150px; overflow-y: auto;">
+                                            <div class="row">
+                                                <div class="col-6">
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" value="tcp"
+                                                            id="protocol_tcp">
+                                                        <label class="form-check-label" for="protocol_tcp">TCP</label>
+                                                    </div>
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" value="udp"
+                                                            id="protocol_udp">
+                                                        <label class="form-check-label" for="protocol_udp">UDP</label>
+                                                    </div>
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" value="icmp"
+                                                            id="protocol_icmp">
+                                                        <label class="form-check-label" for="protocol_icmp">ICMP</label>
+                                                    </div>
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" value="http"
+                                                            id="protocol_http">
+                                                        <label class="form-check-label" for="protocol_http">HTTP</label>
+                                                    </div>
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" value="https"
+                                                            id="protocol_https">
+                                                        <label class="form-check-label"
+                                                            for="protocol_https">HTTPS</label>
+                                                    </div>
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" value="ftp"
+                                                            id="protocol_ftp">
+                                                        <label class="form-check-label" for="protocol_ftp">FTP</label>
+                                                    </div>
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" value="ssh"
+                                                            id="protocol_ssh">
+                                                        <label class="form-check-label" for="protocol_ssh">SSH</label>
+                                                    </div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" value="telnet"
+                                                            id="protocol_telnet">
+                                                        <label class="form-check-label"
+                                                            for="protocol_telnet">Telnet</label>
+                                                    </div>
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" value="smtp"
+                                                            id="protocol_smtp">
+                                                        <label class="form-check-label" for="protocol_smtp">SMTP</label>
+                                                    </div>
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" value="pop3"
+                                                            id="protocol_pop3">
+                                                        <label class="form-check-label" for="protocol_pop3">POP3</label>
+                                                    </div>
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" value="imap"
+                                                            id="protocol_imap">
+                                                        <label class="form-check-label" for="protocol_imap">IMAP</label>
+                                                    </div>
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" value="dns"
+                                                            id="protocol_dns">
+                                                        <label class="form-check-label" for="protocol_dns">DNS</label>
+                                                    </div>
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" value="dhcp"
+                                                            id="protocol_dhcp">
+                                                        <label class="form-check-label" for="protocol_dhcp">DHCP</label>
+                                                    </div>
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" value="snmp"
+                                                            id="protocol_snmp">
+                                                        <label class="form-check-label" for="protocol_snmp">SNMP</label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <small class="form-text text-muted">Select one or more protocols</small>
                                     </div>
                                 </div>
                             </div>
@@ -636,90 +531,34 @@
         }
     }
 
+    function togglePortSelection() {
+        const checkbox = document.getElementById('enablePorts');
+        const portSelection = document.getElementById('portSelection');
+        portSelection.style.display = checkbox.checked ? 'block' : 'none';
+        const multipleInput = document.getElementById('multiplePortsInput');
+        multipleInput.style.display = checkbox.checked ? 'block' : 'none';
+    }
+
+    function togglePortType(type) {
+        const multipleInput = document.getElementById('multiplePortsInput');
+
+        multipleInput.style.display = 'none';
+
+        if (type === 'multiple') {
+            multipleInput.style.display = 'block';
+        }
+    }
+
     function toggleProtocolSelection() {
-        const checkbox = document.getElementById('enableProtocols');
+        const checkbox = document.getElementById('enableProtocol');
         const protocolSelection = document.getElementById('protocolSelection');
         protocolSelection.style.display = checkbox.checked ? 'block' : 'none';
     }
 
     function toggleProtocolType(type) {
-        const portConfig = document.getElementById('portConfiguration');
-
-        if (type === 'tcp' || type === 'udp') {
-            portConfig.style.display = 'block';
-        } else {
-            portConfig.style.display = 'none';
-        }
-    }
-
-    function toggleLocalPortType(type) {
-        const inputs = document.getElementById('localPortInputs');
-        inputs.style.display = type === 'specific' ? 'block' : 'none';
-    }
-
-    function toggleLocalPortMode(mode) {
-        const single = document.getElementById('singleLocalPortInput');
-        const multiple = document.getElementById('multipleLocalPortsInput');
-        const range = document.getElementById('rangeLocalPortsInput');
-
-        single.style.display = 'none';
-        multiple.style.display = 'none';
-        range.style.display = 'none';
-
-        if (mode === 'single') {
-            single.style.display = 'block';
-        } else if (mode === 'multiple') {
-            multiple.style.display = 'block';
-        } else if (mode === 'range') {
-            range.style.display = 'block';
-        }
-    }
-
-    function toggleRemotePortType(type) {
-        const inputs = document.getElementById('remotePortInputs');
-        inputs.style.display = type === 'specific' ? 'block' : 'none';
-    }
-
-    function toggleRemotePortMode(mode) {
-        const single = document.getElementById('singleRemotePortInput');
-        const multiple = document.getElementById('multipleRemotePortsInput');
-        const range = document.getElementById('rangeRemotePortsInput');
-
-        single.style.display = 'none';
-        multiple.style.display = 'none';
-        range.style.display = 'none';
-
-        if (mode === 'single') {
-            single.style.display = 'block';
-        } else if (mode === 'multiple') {
-            multiple.style.display = 'block';
-        } else if (mode === 'range') {
-            range.style.display = 'block';
-        }
-    }
-
-    // Legacy functions (kept for backward compatibility)
-    function togglePortSelection() {
-        const checkbox = document.getElementById('enablePorts');
-        const portSelection = document.getElementById('portSelection');
-        portSelection.style.display = checkbox.checked ? 'block' : 'none';
-    }
-
-    function togglePortType(type) {
-        const singleInput = document.getElementById('singlePortInput');
-        const multipleInput = document.getElementById('multiplePortsInput');
-        const rangeInput = document.getElementById('portRangeInput');
-
-        singleInput.style.display = 'none';
-        multipleInput.style.display = 'none';
-        rangeInput.style.display = 'none';
-
-        if (type === 'single') {
-            singleInput.style.display = 'block';
-        } else if (type === 'multiple') {
+        const multipleInput = document.getElementById('multipleProtocolsInput');
+        if (type === 'multiple') {
             multipleInput.style.display = 'block';
-        } else if (type === 'range') {
-            rangeInput.style.display = 'block';
         }
     }
 
@@ -729,171 +568,51 @@
         customInput.style.display = select.value === 'custom' ? 'block' : 'none';
     }
 
-    function validateProtocolPorts() {
-        const enableProtocols = document.getElementById('enableProtocols').checked;
-        if (!enableProtocols) return { valid: true, protocol: null, localPorts: null, remotePorts: null };
-
-        // Get selected protocol
-        const allProtocol = document.getElementById('allProtocolsOption').checked;
-        const tcpProtocol = document.getElementById('tcpProtocolOption').checked;
-        const udpProtocol = document.getElementById('udpProtocolOption').checked;
-        const icmpProtocol = document.getElementById('icmpProtocolOption').checked;
-
-        let protocol = 'all';
-        if (tcpProtocol) protocol = 'tcp';
-        else if (udpProtocol) protocol = 'udp';
-        else if (icmpProtocol) protocol = 'icmp';
-
-        let localPorts = 'all';
-        let remotePorts = 'all';
-
-        // Only validate ports for TCP/UDP
-        if (protocol === 'tcp' || protocol === 'udp') {
-            // Validate local ports
-            const localPortValidation = validatePortConfig('local');
-            if (!localPortValidation.valid) {
-                return localPortValidation;
-            }
-            localPorts = localPortValidation.ports;
-
-            // Validate remote ports
-            const remotePortValidation = validatePortConfig('remote');
-            if (!remotePortValidation.valid) {
-                return remotePortValidation;
-            }
-            remotePorts = remotePortValidation.ports;
+    function validateProtocols() {
+        const enableProtocol = document.getElementById('enableProtocol').checked;
+        if (!enableProtocol) return { valid: true, protocols: null };
+        const protocolCheckboxes = document.querySelectorAll('#multipleProtocolsInput input[type="checkbox"]:checked');
+        if (protocolCheckboxes.length === 0) {
+            return { valid: false, error: "At least one protocol must be selected." };
         }
 
-        return { valid: true, protocol, localPorts, remotePorts };
+        const selectedProtocols = Array.from(protocolCheckboxes).map(cb => cb.value);
+        return { valid: true, protocols: selectedProtocols };
+
     }
-
-    function validatePortConfig(type) {
-        const prefix = type === 'local' ? 'Local' : 'Remote';
-        const allPortsChecked = document.getElementById(`all${prefix}PortsOption`).checked;
-
-        if (allPortsChecked) {
-            return { valid: true, ports: 'all' };
-        }
-
-        const singleChecked = document.getElementById(`single${prefix}PortOption`).checked;
-        const multipleChecked = document.getElementById(`multiple${prefix}PortsOption`).checked;
-        const rangeChecked = document.getElementById(`range${prefix}PortsOption`).checked;
-
-        if (singleChecked) {
-            const port = document.getElementById(`single${prefix}Port`).value.trim();
-            if (!port) {
-                return { valid: false, error: `${prefix} port is required when specific option is selected.` };
-            }
-            const portNum = parseInt(port);
-            if (portNum < 1 || portNum > 65535) {
-                return { valid: false, error: `${prefix} port must be between 1 and 65535.` };
-            }
-            return { valid: true, ports: [portNum] };
-
-        } else if (multipleChecked) {
-            const ports = document.getElementById(`multiple${prefix}Ports`).value.trim();
-            if (!ports) {
-                return { valid: false, error: `Multiple ${type} ports are required when specific option is selected.` };
-            }
-            const portArray = ports.split(',').map(p => p.trim()).filter(p => p);
-            if (portArray.length === 0) {
-                return { valid: false, error: `At least one ${type} port is required.` };
-            }
-
-            for (let port of portArray) {
-                const portNum = parseInt(port);
-                if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
-                    return { valid: false, error: `Invalid ${type} port: ${port}. Ports must be between 1 and 65535.` };
-                }
-            }
-            return { valid: true, ports: portArray.map(p => parseInt(p)) };
-
-        } else if (rangeChecked) {
-            const startPort = document.getElementById(`start${prefix}Port`).value.trim();
-            const endPort = document.getElementById(`end${prefix}Port`).value.trim();
-
-            if (!startPort || !endPort) {
-                return { valid: false, error: `Both start and end ${type} ports are required for port range.` };
-            }
-
-            const startNum = parseInt(startPort);
-            const endNum = parseInt(endPort);
-
-            if (startNum < 1 || startNum > 65535 || endNum < 1 || endNum > 65535) {
-                return { valid: false, error: `${prefix} ports must be between 1 and 65535.` };
-            }
-
-            if (startNum > endNum) {
-                return { valid: false, error: `Start ${type} port must be less than or equal to end ${type} port.` };
-            }
-
-            return { valid: true, ports: { start: startNum, end: endNum } };
-        }
-
-        return { valid: true, ports: 'all' };
-    }
-
     function validatePorts() {
         const enablePorts = document.getElementById('enablePorts').checked;
         if (!enablePorts) return { valid: true, ports: null };
 
-        const singleChecked = document.getElementById('singlePortOption').checked;
-        const multipleChecked = document.getElementById('multiplePortsOption').checked;
-        const rangeChecked = document.getElementById('portRangeOption').checked;
+        const ports = document.getElementById('multiplePorts').value.trim();
+        if (!ports) {
+            return { valid: false, error: "Multiple ports are required when port option is enabled." };
+        }
+        const portArray = ports.split(',').map(p => p.trim()).filter(p => p);
+        if (portArray.length === 0) {
+            return { valid: false, error: "At least one port is required." };
+        }
 
-        if (singleChecked) {
-            const port = document.getElementById('singlePort').value.trim();
-            if (!port) {
-                return { valid: false, error: "Single port is required when port option is enabled." };
-            }
-            const portNum = parseInt(port);
-            if (portNum < 1 || portNum > 65535) {
-                return { valid: false, error: "Port must be between 1 and 65535." };
-            }
-            return { valid: true, ports: [portNum] };
-
-        } else if (multipleChecked) {
-            const ports = document.getElementById('multiplePorts').value.trim();
-            if (!ports) {
-                return { valid: false, error: "Multiple ports are required when port option is enabled." };
-            }
-            const portArray = ports.split(',').map(p => p.trim()).filter(p => p);
-            if (portArray.length === 0) {
-                return { valid: false, error: "At least one port is required." };
-            }
-
-            for (let port of portArray) {
+        // Tách các khoảng port có dạng a-b ra khỏi các port đơn
+        for (let port of portArray) {
+            if (port.includes('-')) {
+                const [start, end] = port.split('-').map(p => parseInt(p.trim()));
+                if (isNaN(start) || isNaN(end) || start < 1 || end > 65535 || start > end) {
+                    return { valid: false, error: `Invalid port range: ${port}. Ensure it is in the format a-b and within 1-65535.` };
+                }
+            } else {
                 const portNum = parseInt(port);
                 if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
                     return { valid: false, error: `Invalid port: ${port}. Ports must be between 1 and 65535.` };
                 }
             }
-            return { valid: true, ports: portArray.map(p => parseInt(p)) };
-
-        } else if (rangeChecked) {
-            const startPort = document.getElementById('startPort').value.trim();
-            const endPort = document.getElementById('endPort').value.trim();
-
-            if (!startPort || !endPort) {
-                return { valid: false, error: "Both start and end ports are required for port range." };
-            }
-
-            const startNum = parseInt(startPort);
-            const endNum = parseInt(endPort);
-
-            if (startNum < 1 || startNum > 65535 || endNum < 1 || endNum > 65535) {
-                return { valid: false, error: "Ports must be between 1 and 65535." };
-            }
-
-            if (startNum > endNum) {
-                return { valid: false, error: "Start port must be less than or equal to end port." };
-            }
-
-            return { valid: true, ports: { start: startNum, end: endNum } };
         }
 
-        return { valid: true, ports: null };
+        return { valid: true, ports: portArray };
+
     }
+
+
 
     function addToPendingList() {
         const type = document.getElementById('singleIpOption').checked ? 'single' : 'range';
@@ -901,8 +620,29 @@
         clearValidation();
         let entry = {};
 
-        if (type === 'single') {
-            const ip = document.getElementById('ip').value.trim();
+        const ip_address = document.getElementById('ip').value.trim();
+        // Kiểm tra xem ip_address đơn hay khoảng
+        if (ip_address && ip_address.includes('-')) {
+            const [start_ip, end_ip] = ip_address.split('-').map(ip => ip.trim());
+            if (!valid_IP(start_ip)) {
+                markInvalid('start_ip');
+                showAlert("Invalid Start IP.");
+                return;
+            }
+            if (!valid_IP(end_ip)) {
+                markInvalid('end_ip');
+                showAlert("Invalid End IP.");
+                return;
+            }
+            if (ipToNumber(start_ip) > ipToNumber(end_ip)) {
+                markInvalid('start_ip');
+                markInvalid('end_ip');
+                showAlert("Start IP must be less than or equal to End IP.");
+                return;
+            }
+            entry = { type: 'range', start_ip, end_ip };
+        } else {
+            const ip = ip_address;
             if (!valid_IP(ip)) {
                 markInvalid('ip');
                 showAlert("Invalid IPv4/IPv6 address.");
@@ -916,54 +656,23 @@
             }
 
             entry = { type: 'single', ip };
-        } else {
-            const start = document.getElementById('start_ip').value.trim();
-            const end = document.getElementById('end_ip').value.trim();
-
-            if (!valid_IP(start)) {
-                markInvalid('start_ip');
-                showAlert("Invalid Start IP.");
-                return;
-            }
-            if (!valid_IP(end)) {
-                markInvalid('end_ip');
-                showAlert("Invalid End IP.");
-                return;
-            }
-
-            if (ipToNumber(start) > ipToNumber(end)) {
-                markInvalid('start_ip');
-                markInvalid('end_ip');
-                showAlert("Start IP must be less than or equal to End IP.");
-                return;
-            }
-
-            if (isDuplicateRange(start, end)) {
-                showAlert("This IP range overlaps with an existing IP or range.");
-                return;
-            }
-
-            entry = { type: 'range', start_ip: start, end_ip: end };
         }
 
-        // Validate new protocol and ports
-        const protocolValidation = validateProtocolPorts();
-        if (!protocolValidation.valid) {
-            showAlert(protocolValidation.error);
-            return;
-        }
-
-        entry.protocol = protocolValidation.protocol;
-        entry.localPorts = protocolValidation.localPorts;
-        entry.remotePorts = protocolValidation.remotePorts;
-
-        // Legacy port validation (for backward compatibility)
+        // Validate ports
         const portValidation = validatePorts();
         if (!portValidation.valid) {
             showAlert(portValidation.error);
             return;
         }
         entry.ports = portValidation.ports;
+
+        // Validate protocols
+        const protocolValidation = validateProtocols();
+        if (!protocolValidation.valid) {
+            showAlert(protocolValidation.error);
+            return;
+        }
+        entry.protocols = protocolValidation.protocols;
 
         // Reason
         const reason = document.getElementById('reasonSelect').value;
@@ -974,21 +683,11 @@
         pendingEntries.push(entry);
         updatePendingList();
         hideAlert();
-        resetForm();
-    }
-
-    function resetForm() {
         document.getElementById('blacklistForm').reset();
         document.getElementById('enablePorts').checked = false;
-        document.getElementById('enableProtocols').checked = true;
-        document.getElementById('allProtocolsOption').checked = true;
-        document.getElementById('allLocalPortsOption').checked = true;
-        document.getElementById('allRemotePortsOption').checked = true;
+        document.getElementById('enableProtocol').checked = false;
         togglePortSelection();
         toggleProtocolSelection();
-        toggleProtocolType('all');
-        toggleLocalPortType('all');
-        toggleRemotePortType('all');
         toggleInputType('single');
         clearValidation();
     }
@@ -1023,37 +722,6 @@
         });
     }
 
-    function formatProtocolDisplay(protocol, localPorts, remotePorts) {
-        if (!protocol || protocol === 'all') {
-            return ' [All Protocols]';
-        }
-
-        let display = ` [${protocol.toUpperCase()}`;
-
-        if (protocol === 'tcp' || protocol === 'udp') {
-            display += ' - Local: ';
-            display += formatPortsForDisplay(localPorts);
-            display += ', Remote: ';
-            display += formatPortsForDisplay(remotePorts);
-        }
-
-        display += ']';
-        return display;
-    }
-
-    function formatPortsForDisplay(ports) {
-        if (!ports || ports === 'all') {
-            return 'All';
-        }
-
-        if (Array.isArray(ports)) {
-            return ports.join(', ');
-        } else if (ports.start && ports.end) {
-            return `${ports.start}-${ports.end}`;
-        }
-        return 'All';
-    }
-
     function formatPortsDisplay(ports) {
         if (!ports) return '';
 
@@ -1065,6 +733,11 @@
         return '';
     }
 
+    function formatProtocolsDisplay(protocols) {
+        if (!protocols || !Array.isArray(protocols) || protocols.length === 0) return '';
+        return ` [Protocols: ${protocols.join(', ').toUpperCase()}]`;
+    }
+
     function updatePendingList() {
         const list = document.getElementById('pendingList');
         list.innerHTML = "";
@@ -1072,17 +745,11 @@
             const li = document.createElement("li");
             li.className = "list-group-item d-flex justify-content-between align-items-center";
             const ipDisplay = entry.type === 'single' ? entry.ip : `${entry.start_ip} - ${entry.end_ip}`;
-
-            // Show new protocol info if available, otherwise show legacy ports
-            let protocolDisplay = '';
-            if (entry.protocol) {
-                protocolDisplay = formatProtocolDisplay(entry.protocol, entry.localPorts, entry.remotePorts);
-            } else {
-                protocolDisplay = formatPortsDisplay(entry.ports);
-            }
+            const portsDisplay = formatPortsDisplay(entry.ports);
+            const protocolsDisplay = formatProtocolsDisplay(entry.protocols);
 
             li.innerHTML = `
-                    <span>${ipDisplay}${protocolDisplay} <small class="text-muted">(${entry.reason})</small></span>
+                    <span>${ipDisplay}${portsDisplay}${protocolsDisplay} <small class="text-muted">(${entry.reason})</small></span>
                     <button class="btn btn-sm btn-outline-danger" onclick="removeEntry(${i})">&times;</button>
                 `;
             list.appendChild(li);
@@ -1102,7 +769,6 @@
         document.getElementById('entriesData').value = JSON.stringify(pendingEntries);
         // In a real application, this would submit the form
         console.log('Submitting:', pendingEntries);
-        alert('Data would be submitted (check console for details)');
     }
 
     function showAlert(message) {
@@ -1128,13 +794,8 @@
         const inputs = document.querySelectorAll('.is-invalid');
         inputs.forEach(input => input.classList.remove('is-invalid'));
     }
-
-    // Initialize form on page load
-    document.addEventListener('DOMContentLoaded', function () {
-        toggleProtocolSelection();
-        toggleProtocolType('all');
-    });
 </script>
+
 <!-- Add Domain Blacklist Modal -->
 <div class="modal fade" id="addDomainModal" tabindex="-1">
     <div class="modal-dialog modal-lg" style="margin-top: 6.5rem;">

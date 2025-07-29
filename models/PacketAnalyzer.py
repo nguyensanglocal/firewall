@@ -519,6 +519,12 @@ class PacketAnalyzer:
         
         
         self.WHITELIST = {'127.0.0.1', '192.168.1.1', '10.0.0.1'}
+
+
+        self.capture_thread = threading.Thread(target=self.capture_packets)
+        self.capture_thread.daemon = True
+        self.capture_thread.start()
+
         
     def get_port_classification(self, port):
         """Phân loại cổng"""
@@ -708,7 +714,7 @@ class PacketAnalyzer:
         
         packet_info['threats'] = threats
     
-    def detect_ddos_pattern(self, src_ip, limit_packet_rate=10, connection_limit=20):
+    def detect_ddos_pattern(self, src_ip, limit_packet_rate=500, connection_limit=20):
         """Phát hiện pattern DDoS"""
         stats = self.packet_stats[src_ip]
         current_time = datetime.now()
@@ -878,27 +884,30 @@ class PacketAnalyzer:
     
     def capture_packets(self):
         """Capture packets với filter nâng cao"""
-        try:
-            print(f"Starting enhanced packet capture on {self.interface}")
-            
-            # Enhanced filtering
-            filter_rule = getattr(self, 'capture_filter', None)
-            
-            sniff(
-                iface=self.interface,
-                prn=self.process_packet_scapy,
-                filter=filter_rule,
-                stop_filter=lambda x: not self.is_capturing,
-                store=False,
-                timeout=1
-            )
-            
-        except Exception as e:
-            error_msg = f'Enhanced capture error: {str(e)}'
-            if hasattr(self, 'socketio'):
-                self.socketio.emit('error', {'message': error_msg})
-            else:
-                print(f'Error: {error_msg}')
+        print(f"Starting enhanced packet capture on {self.interface}")
+        
+        # Enhanced filtering
+        filter_rule = getattr(self, 'capture_filter', None)
+        
+        while 1:
+            try:    
+                sniff(
+                    iface=self.interface,
+                    prn=self.process_packet_scapy,
+                    filter=filter_rule,
+                    # stop_filter=lambda x: not self.is_capturing,
+                    stop_filter=lambda x: True,  # Always capture
+                    store=False,
+                    timeout=1
+                )
+                
+            except Exception as e:
+                error_msg = f'Enhanced capture error: {str(e)}'
+                if hasattr(self, 'socketio'):
+                    self.socketio.emit('error', {'message': error_msg})
+                else:
+                    print(f'Error: {error_msg}')
+        print("Packet capture stopped.")
     
     def get_protocol_statistics(self):
         """Lấy thống kê giao thức"""
@@ -976,9 +985,9 @@ class PacketAnalyzer:
             if filter_str:
                 self.capture_filter = filter_str
             self.is_capturing = True
-            self.capture_thread = threading.Thread(target=self.capture_packets)
-            self.capture_thread.daemon = True
-            self.capture_thread.start()
+            # self.capture_thread = threading.Thread(target=self.capture_packets)
+            # self.capture_thread.daemon = True
+            # self.capture_thread.start()
             return True
         return False
     
@@ -988,8 +997,8 @@ class PacketAnalyzer:
     
     def stop_capture(self):
         self.is_capturing = False
-        if self.capture_thread:
-            self.capture_thread.join(timeout=1)
+        # if self.capture_thread:
+        #     self.capture_thread.join(timeout=1)
         return True
     
     def clear_packets(self):
